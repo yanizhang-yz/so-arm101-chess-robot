@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+.DS_Store
+
+# local, machine-specific calibration + runtime artifacts (never commit)
+config/board.local.yaml
+outputs/

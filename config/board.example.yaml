@@ -1,0 +1,36 @@
+# Copy to config/board.local.yaml and fill in measured values for your setup.
+# All coordinates are in meters, in the board frame (origin = center of a1,
+# +x toward h1, +y toward a8). board.local.yaml is gitignored.
+
+square_size_m: 0.04          # measure your board's square size
+
+# Board-frame -> robot-frame transform. Produce these numbers by running
+# scripts/calibrate_board.py on the arm. Defaults below are identity (only
+# meaningful once calibrated).
+transform:
+  scale: 1.0
+  theta_rad: 0.0
+  offset: [0.0, 0.0]
+
+heights:
+  table_z: 0.02              # robot-frame height of the board surface
+  grasp_lift: 0.0            # close the gripper this far above the surface
+  hover: 0.06               # safe travel height above the board
+
+# Where captured pieces and spare promotion pieces live (board-frame x, y).
+offboard:
+  graveyard:
+    - [-0.05, 0.00]
+    - [-0.05, 0.04]
+    - [-0.05, 0.08]
+    - [-0.05, 0.12]
+  spares:
+    Q:
+      - [-0.13, 0.00]
+
+arm:
+  follower_port: "TODO"      # from: python scripts/find_port.py
+  robot_id: "chessbot_follower"
+  urdf_path: "TODO"          # path to your SO-101 URDF
+  gripper_open: 60.0
+  gripper_closed: 10.0

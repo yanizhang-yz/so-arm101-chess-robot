@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chessbot"
+version = "0.1.0"
+description = "A chess-playing, chess-coaching robot arm for the SO-ARM101 (LeRobot)."
+requires-python = ">=3.10"
+dependencies = [
+    "chess>=1.10",   # python-chess: game state, legal moves, special-move detection
+    "numpy>=1.24",   # board<->robot transform math
+    "pyyaml>=6.0",   # config/board.local.yaml
+]
+
+[project.optional-dependencies]
+# Only needed to drive the physical arm. Reuses your lerobot-experiments stack;
+# you can also just run hardware scripts with that venv instead of installing here.
+hardware = ["lerobot>=0.5", "placo"]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
