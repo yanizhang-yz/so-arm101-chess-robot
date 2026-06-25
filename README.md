@@ -8,6 +8,10 @@ The project is layered so the **brains and logic run with no hardware** — you 
 develop and test the whole game on a laptop — and only one module
 (`arm.LeRobotArm`) ever touches the physical robot.
 
+> **New here, or not a programmer?** Start with the friendly, step-by-step
+> beginner's guide in **[docs/Home.md](docs/Home.md)** — it builds this whole
+> project from scratch assuming no coding background.
+
 ## Status
 
 **Stage 1 scaffolded and runnable offline.** `stage1_demo.py` plans and "executes"
