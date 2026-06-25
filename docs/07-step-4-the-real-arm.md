@@ -4,6 +4,10 @@ This is the moment the robot becomes real. It's also the **fiddliest** part of t
 whole project, so take it slowly and don't expect it to be perfect on the first
 try. That's normal.
 
+> 🛠️ **Want just the commands, in order?** See the
+> [Hardware Setup Checklist](hardware-setup-checklist.md) — but read the safety
+> section right below first.
+
 ## Safety first
 
 Please read this before the arm ever moves on its own. The arm is small, but it
