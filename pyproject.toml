@@ -16,7 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 # Only needed to drive the physical arm. Reuses your lerobot-experiments stack;
 # you can also just run hardware scripts with that venv instead of installing here.
-hardware = ["lerobot>=0.5", "placo"]
+hardware = ["lerobot>=0.5", "feetech-servo-sdk", "placo"]  # feetech-servo-sdk = the STS3215 motor driver (provides scservo_sdk)
 dev = ["pytest>=7.0"]
 
 [tool.setuptools.packages.find]

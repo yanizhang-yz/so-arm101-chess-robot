@@ -58,6 +58,11 @@ only need Stockfish to play a full game.
 Recreate the toolbox with the right version: `uv venv --python 3.12`, then
 `uv pip install -e . pytest` again.
 
+**`ModuleNotFoundError: No module named 'scservo_sdk'` (during arm calibration)**
+That's the Feetech motor driver LeRobot uses to talk to the arm. Install it into
+your project venv: `uv pip install feetech-servo-sdk`. (It's now part of the
+`.[hardware]` install, so fresh setups get it automatically.)
+
 **The arm: "could not open port" / it won't connect**
 Check the USB cable is in, the arm's **power supply is switched on** (USB alone
 isn't enough), and re-run the find-port command to confirm the name. The project
