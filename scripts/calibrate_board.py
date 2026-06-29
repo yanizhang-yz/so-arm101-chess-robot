@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 """Calibrate the board -> robot transform (HARDWARE; run once after setup).
 
-Disables the arm's torque so you can move the gripper by hand. For each of the
-four corner squares it shows the gripper's **live (x, y)** — move there, watch the
-numbers change, and press ENTER (while holding the gripper on the corner) to
-record. It then fits a similarity transform and prints YAML for
-config/board.local.yaml.
+Disables the arm's torque so you can move the gripper by hand. For each corner
+square, **hold the gripper on the corner with both hands and keep still** — it
+records automatically once the reading holds steady (no key press, so you never
+have to let go and let a limp arm sag). It then fits a similarity transform and
+prints YAML for config/board.local.yaml.
 
     python scripts/calibrate_board.py
 
-The four recorded points should be spread ~your board's size apart. If the live
-xy barely changes as you move the arm, or it snaps back toward the middle when you
-let go, the arm isn't staying put — hold it on each corner while you press ENTER.
+The four recorded points should be spread ~your board's size apart. The script
+reports the spread and refuses to emit values if the corners came out clustered.
 """
 from __future__ import annotations
 
@@ -25,17 +24,24 @@ from chessbot.config import load
 from chessbot.kinematics import BoardToRobot
 
 REFERENCE_SQUARES = ["a1", "h1", "a8", "h8"]  # the four corners span the board well
+STEADY_M = 0.004  # auto-record once xy jitter stays under 4 mm for ~1.6 s
 
 
 def capture(arm: LeRobotArm, square: str) -> tuple[float, float]:
-    """Show live gripper xy until the user presses ENTER, then record that point."""
-    print(f"\nHold the gripper on the CENTER of {square}; press ENTER to record.")
-    x, y = arm.ee_xy()
+    """Show live gripper xy; record automatically when steady (or on ENTER)."""
+    print(f"\nHold the gripper on the CENTER of {square} and keep still "
+          "(auto-records when steady, or press ENTER).")
+    recent: list[tuple[float, float]] = []
     while True:
         x, y = arm.ee_xy()
-        print(f"   live {square}: ({x:+.3f}, {y:+.3f})      ", end="\r", flush=True)
-        if select.select([sys.stdin], [], [], 0.25)[0]:
+        recent = (recent + [(x, y)])[-8:]
+        jitter = float(np.array(recent).std(axis=0).max()) if len(recent) == 8 else 9.9
+        print(f"   {square}: ({x:+.3f}, {y:+.3f})   jitter {jitter * 1000:4.1f} mm   ",
+              end="\r", flush=True)
+        forced = bool(select.select([sys.stdin], [], [], 0.2)[0])
+        if forced:
             sys.stdin.readline()
+        if jitter < STEADY_M or forced:
             print(f"\n   recorded {square}: ({x:+.3f}, {y:+.3f})")
             return float(x), float(y)
 
@@ -50,7 +56,7 @@ def main() -> None:
     arm = LeRobotArm(port=a.follower_port, urdf_path=a.urdf_path, robot_id=a.robot_id)
     arm.connect()
     arm.relax()
-    print("Torque off — move the arm by hand. The live xy below should change as you move it.")
+    print("Torque off — move the arm by hand. Hold each corner steady; it captures itself.")
 
     board_pts, robot_pts = [], []
     try:
@@ -66,11 +72,9 @@ def main() -> None:
 
     print(f"\nRecorded-point spread: {span * 100:.1f} cm  (expect ~40 cm corner-to-corner).")
     if span < 0.10 or not (0.5 <= t.scale <= 2.0):
-        print(f"\n⚠️  These numbers look WRONG (scale {t.scale:.3f}, spread {span * 100:.1f} cm).")
-        print("    The corners came out too close together — the arm didn't actually reach")
-        print("    them (it likely drifted back to center). Run scripts/joint_watch.py to")
-        print("    confirm the xy moves, hold each corner while pressing ENTER, and re-run.")
-        print("    Not pasting these — they'd send the arm to the wrong place.")
+        print(f"\n⚠️  These look WRONG (scale {t.scale:.3f}, spread {span * 100:.1f} cm).")
+        print("    The corners came out clustered. Hold each corner steadier/longer and")
+        print("    re-run — not pasting these, they'd send the arm to the wrong place.")
         return
 
     print("\n--- paste into config/board.local.yaml ---\n")
