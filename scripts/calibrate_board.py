@@ -42,6 +42,13 @@ def main() -> None:
         arm.disconnect()
 
     t = BoardToRobot.from_correspondences(board_pts, robot_pts)
+    if not (0.5 <= t.scale <= 2.0):
+        print(f"\n⚠️  WARNING: scale = {t.scale:.4f}, but it should be about 1.0 "
+              "(board and robot are both measured in meters).")
+        print("    That means the four corners came out too close together — usually")
+        print("    the arm wasn't fully limp, or the gripper wasn't actually moved to")
+        print("    each distinct corner square. The numbers below are unreliable; relax")
+        print("    the arm, touch each real corner, and re-run.")
     print("\n--- paste into config/board.local.yaml ---\n")
     print("transform:")
     print(f"  scale: {t.scale:.6f}")
