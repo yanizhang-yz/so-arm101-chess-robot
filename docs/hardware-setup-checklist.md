@@ -72,8 +72,10 @@ commands. **Run everything from inside the `chess-robot` folder.**
 
 ## F. Tune the grip + test ONE move first
 
-12. Adjust `arm.gripper_open` / `arm.gripper_closed` so it holds a piece without
-    crushing or dropping it.
+12. Tune the gripper with `python scripts/gripper_test.py`: send values 0-100 to
+    find which opens (clears a piece) and which holds a piece firmly, then put
+    those in `arm.gripper_open` / `arm.gripper_closed`. "Closed" means clamped on
+    the piece, not jaws fully shut — the firmware torque limit stops it crushing.
 13. **Test a single move slowly before risking a whole game:**
     ```bash
     python stage1_demo.py --from e2 --to e4 --hardware
