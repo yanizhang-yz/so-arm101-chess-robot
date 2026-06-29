@@ -8,9 +8,9 @@ Two stages, deliberately separated so the cheap, testable part runs anywhere:
                  covered by tests. scripts/calibrate_board.py fits it from a
                  few squares whose robot-space location you measure.
 
-  IKSolver       robot-frame pose (x, y, z) + grasp orientation -> joint degrees
-                 thin wrapper over lerobot.model.kinematics.RobotKinematics
-                 (placo). Imported lazily; only needed to drive the real arm.
+  IKSolver       robot-frame point (x, y, z) -> 5 joint degrees (position IK)
+                 backed by ikpy (pure Python, reads the URDF). Imported lazily;
+                 only needed to drive the real arm.
 """
 from __future__ import annotations
 
@@ -60,32 +60,58 @@ class BoardToRobot:
         return cls(scale=scale, theta_rad=math.atan2(r[1, 0], r[0, 0]), offset=offset)
 
 
-def default_grasp_orientation() -> np.ndarray:
-    """A gripper-pointing-down rotation (tool +z aligned with world -z).
-
-    IK runs with a low orientation weight, so this is a soft preference: the
-    solver prioritizes reaching the (x, y, z) target. Tune to your URDF's
-    gripper frame if grasps come in at an awkward angle.
-    """
-    return np.array([[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])
-
-
 class IKSolver:
-    """Wraps LeRobot's RobotKinematics; constructed lazily (needs lerobot + placo)."""
+    """Inverse/forward kinematics for the SO-101 arm, via ikpy (pure Python).
+
+    We use ikpy rather than LeRobot's placo-based RobotKinematics: the placo
+    wheels have native-library (urdfdom/tinyxml2) version conflicts on macOS,
+    while ikpy reads the same URDF with no compiled dependencies. Position-only
+    IK, which is the right fit for a 5-DOF arm reaching points on a flat board.
+    """
 
     ARM_JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
 
     def __init__(self, urdf_path: str | Path, target_frame: str = "gripper_frame_link"):
-        from lerobot.model.kinematics import RobotKinematics  # lazy: optional dep
-        self.kin = RobotKinematics(str(urdf_path), target_frame_name=target_frame,
-                                   joint_names=self.ARM_JOINTS)
+        import warnings
+
+        from ikpy.chain import Chain  # lazy: optional hardware dep
+        actuated = ("revolute", "prismatic", "continuous")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # ikpy is chatty about non-actuated links
+            # Probe once to read joint types, then rebuild marking only the real
+            # (revolute) joints active — the base link and the fixed tip frame must
+            # stay inactive, or the IK solver tries to "move" them.
+            probe = Chain.from_urdf_file(str(urdf_path))
+            mask = [getattr(link, "joint_type", "fixed") in actuated for link in probe.links]
+            self.chain = Chain.from_urdf_file(str(urdf_path), active_links_mask=mask)
+        self._active = [i for i, on in enumerate(mask) if on]
+        if len(self._active) != len(self.ARM_JOINTS):
+            raise ValueError(
+                f"URDF chain has {len(self._active)} movable joints, expected "
+                f"{len(self.ARM_JOINTS)}: {urdf_path}"
+            )
+
+    def _full(self, q_deg) -> np.ndarray:
+        """A full ikpy joint vector (radians) built from our 5 arm-joint degrees."""
+        full = np.zeros(len(self.chain.links))
+        full[self._active] = np.deg2rad(np.asarray(q_deg, float))
+        return full
 
     def joints_for(self, xyz, current_q_deg, orientation: np.ndarray | None = None) -> np.ndarray:
-        """Solve IK for an end-effector position. Returns the 5 arm-joint degrees."""
-        t = np.eye(4)
-        t[:3, :3] = orientation if orientation is not None else default_grasp_orientation()
-        t[:3, 3] = np.asarray(xyz, float)
-        return self.kin.inverse_kinematics(np.asarray(current_q_deg, float), t)
+        """Position IK for a target gripper point. Returns the 5 arm-joint degrees.
+
+        `orientation` is accepted for API compatibility but ignored — position-only
+        IK is the right call for a 5-DOF arm on a flat board.
+        """
+        full = self.chain.inverse_kinematics(
+            target_position=np.asarray(xyz, float),
+            initial_position=self._full(current_q_deg),
+        )
+        return np.rad2deg(full[self._active])
+
+    def forward_xyz(self, q_deg) -> np.ndarray:
+        """Forward kinematics: 5 arm-joint degrees -> gripper (x, y, z) in meters."""
+        return self.chain.forward_kinematics(self._full(q_deg))[:3, 3]
 
 
 def find_urdf() -> Path | None:

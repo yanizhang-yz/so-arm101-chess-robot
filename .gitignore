@@ -10,3 +10,7 @@ dist/
 # local, machine-specific calibration + runtime artifacts (never commit)
 config/board.local.yaml
 outputs/
+
+# bundled SO-101 URDF meshes — 16MB of STLs that ikpy doesn't need.
+# Refetch from github.com/TheRobotStudio/SO-ARM100 if you want sim/visualization.
+urdf/SO101/assets/

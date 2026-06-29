@@ -52,9 +52,13 @@ commands. **Run everything from inside the `chess-robot` folder.**
 ## D. Tell the program about the board + arm model
 
 9. In `config/board.local.yaml` set:
-   - `square_size_m` — measure one square (e.g. `0.04` for 4 cm)
-   - `arm.urdf_path` — path to the SO-101 URDF (the arm's 3-D model the math needs)
+   - `square_size_m` — measure one square with a ruler (e.g. `0.04` for 4 cm)
+   - `arm.urdf_path` — already set to the bundled `urdf/SO101/so101_new_calib.urdf`
+     (the arm's 3-D model the IK needs); no action needed
    - `heights.table_z` — height of the board surface (you'll fine-tune this)
+
+   > The IK runs on **ikpy** (pure Python). If you ever see a `placo` error,
+   > you're on an old setup — reinstall with `uv pip install -e ".[hardware]"`.
 
 ## E. Calibrate the board position
 

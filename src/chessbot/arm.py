@@ -122,5 +122,5 @@ class LeRobotArm:
 
     def ee_xy(self) -> tuple[float, float]:
         """Current end-effector (x, y) in the robot frame, via forward kinematics."""
-        t = self._ik.kin.forward_kinematics(self._current_q())
-        return float(t[0, 3]), float(t[1, 3])
+        x, y, _ = self._ik.forward_xyz(self._current_q())
+        return float(x), float(y)
