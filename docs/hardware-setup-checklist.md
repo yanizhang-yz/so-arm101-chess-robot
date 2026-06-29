@@ -8,6 +8,12 @@ commands. **Run everything from inside the `chess-robot` folder.**
 > ⚠️ **Read the [safety rules](07-step-4-the-real-arm.md#safety-first) first:**
 > turn-based, slow, hands clear, a power cut within reach, always supervised.
 
+> 💡 **No leader arm needed.** This project only uses the **follower** (the arm
+> that acts). Both calibration steps below (C and E) are done by **moving the
+> follower by hand** while its motors are switched off — your hand does the job
+> the leader arm does in teleoperation projects. The arm goes limp when the motors
+> are off, so support its weight.
+
 ## A. Physical setup (no computer)
 
 1. Clamp the arm firmly to the desk on **its** side of the board.
@@ -35,8 +41,10 @@ commands. **Run everything from inside the `chess-robot` folder.**
 
 ## C. Calibrate the arm's joints (one-time)
 
-8. Run LeRobot's calibration and follow the on-screen prompts (move to the middle,
-   then sweep each joint through its full range):
+8. Run LeRobot's calibration and follow the on-screen prompts. The motors switch
+   **off** so you move the follower **by hand** (support its weight — no leader
+   arm involved): pose it in the middle of its range, then sweep each joint to its
+   limits while it records.
    ```bash
    lerobot-calibrate --robot.type=so101_follower --robot.port=YOUR_PORT --robot.id=chessbot_follower
    ```
