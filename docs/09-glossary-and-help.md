@@ -65,8 +65,16 @@ your project venv: `uv pip install feetech-servo-sdk`. (It's now part of the
 
 **The arm: "could not open port" / it won't connect**
 Check the USB cable is in, the arm's **power supply is switched on** (USB alone
-isn't enough), and re-run the find-port command to confirm the name. The project
-includes a diagnostic script (`scan_motor_bus.py`) for deeper arm issues.
+isn't enough), and re-run the find-port command to confirm the name. To see which
+motors answer: `.venv/bin/python scripts/scan_motor_bus.py <your-port>`.
+
+**`ConnectionError: ... no status packet` / a motor stops responding mid-session**
+The bus lost contact with one motor (its id is in the message). Almost always
+electrical, not software — a 3-pin cable tugged loose (common right after
+hand-moving the arm) or a power blip. Scan to confirm:
+`.venv/bin/python scripts/scan_motor_bus.py <your-port>`. If all six answer, it
+was transient — just re-run your command. If one is missing, re-seat its 3-pin
+cable and check the power supply.
 
 **Something else / a scary red error**
 Don't worry — red text is just the computer telling you what went wrong. Copy the
