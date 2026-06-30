@@ -31,9 +31,9 @@ def main() -> None:
     try:
         while True:
             q = arm._current_q()
-            x, y, _ = arm._ik.forward_xyz(q)
+            x, y, z = arm._ik.forward_xyz(q)
             joints = " ".join(f"{v:6.1f}" for v in q)
-            print(f"joints(deg): {joints}   |   gripper xy: ({x:+.3f}, {y:+.3f})")
+            print(f"joints(deg): {joints}   |   gripper xyz: ({x:+.3f}, {y:+.3f}, {z:+.3f})")
             time.sleep(0.3)
     except KeyboardInterrupt:
         print("\nstopped.")
