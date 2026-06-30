@@ -57,8 +57,7 @@ commands. **Run everything from inside the `chess-robot` folder.**
      (the arm's 3-D model the IK needs); no action needed
    - `heights.table_z` — height of the board surface (you'll fine-tune this)
 
-   > The IK runs on **ikpy** (pure Python). If you ever see a `placo` error,
-   > you're on an old setup — reinstall with `uv pip install -e ".[hardware]"`.
+   > The IK runs on **ikpy** (pure Python) — no native libraries to wrestle with.
 
 ## E. Calibrate the board position
 
@@ -66,9 +65,15 @@ commands. **Run everything from inside the `chess-robot` folder.**
     ```bash
     python scripts/calibrate_board.py
     ```
-    It relaxes the arm; gently place the gripper on the **center of each corner
-    square** when prompted (a1, h1, a8, h8). It prints a `transform:` block.
-11. Paste that `transform:` block into `config/board.local.yaml`.
+    It relaxes the arm and shows the gripper's **live (x, y)**. For each corner
+    (a1, h1, a8, h8): hold the gripper tip on the square's center and press ENTER.
+    It won't accept a corner less than 5 cm from the previous one, so take your
+    time. At the end it reports the **spread** (~40 cm for a full board) and prints
+    a `transform:` block including a `flip` (it auto-detects a mirrored board); raw
+    points are saved to `outputs/last_calibration.json`.
+11. Paste the whole `transform:` block (including `flip`) into
+    `config/board.local.yaml`. If it warns the result looks wrong (clustered, or an
+    implausible scale), re-do the touches — don't paste a bad result.
 
 ## F. Tune the grip + test ONE move first
 

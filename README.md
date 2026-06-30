@@ -14,9 +14,10 @@ develop and test the whole game on a laptop — and only one module
 
 ## Status
 
-**Stage 1 scaffolded and runnable offline.** `stage1_demo.py` plans and "executes"
-piece moves (including captures, castling, en passant, promotion) on a `MockArm`
-that prints the choreography. Swap in `--hardware` once the arm is calibrated.
+**Stages 1–2 done and runnable offline.** `stage1_demo.py` does a single
+pick-and-place and `play.py` plays a full game vs. Stockfish — both on a `MockArm`
+that prints the choreography (captures, castling, en passant, promotion all
+handled). Swap in `--hardware` once the arm is calibrated.
 
 ## The plan
 
@@ -62,8 +63,8 @@ src/chessbot/
   board.py       square <-> board-plane (x,y) geometry        (pure, tested)
   moves.py       chess move -> primitive ops: carry/remove/    (pure, tested)
                  place_spare, handling captures/castle/EP/promo
-  kinematics.py  board->robot similarity transform (pure,      (transform tested)
-                 tested) + IKSolver wrapping LeRobot's RobotKinematics
+  kinematics.py  board->robot transform, incl. mirrored boards (pure, tested)
+                 + IKSolver (inverse kinematics via ikpy)
   arm.py         MockArm (offline) | LeRobotArm (SO-ARM101)
   motion.py      pick-and-place choreography over an ArmBackend
   engine.py      Stockfish brain (kid-strength tunable)
@@ -72,37 +73,32 @@ src/chessbot/
   config.py      one place for ports, geometry, heights, slots
 stage1_demo.py   stage-1 CLI: pick-and-place a single move
 play.py          stage-2 CLI: play a full game
-scripts/         find_port.py, calibrate_board.py             [hardware]
+scripts/         find_port, calibrate_board, gripper_test,      [hardware]
+                 joint_watch, scan_motor_bus
+urdf/SO101/      bundled SO-101 URDF (the IK model)            [hardware]
 tests/           pure-logic tests — run anywhere
 ```
 
 ## Going to hardware (SO-ARM101 Pro, 12V)
 
-The hardware path needs `lerobot` + `placo`. Two options:
+The hardware extra adds `feetech-servo-sdk` (the STS3215 motor driver) and `ikpy`
+(pure-Python inverse kinematics) on top of `lerobot`:
 
-- **Reuse your existing env:** run the hardware scripts with
-  `../lerobot-experiments/.venv/bin/python` (lerobot 0.5.1 is already there; just
-  `uv pip install chess` into it), **or**
-- install here: `uv pip install -e ".[hardware]"` (pulls torch — slower).
+```bash
+uv pip install -e ".[hardware]"
+```
 
-Then:
+Then follow the step-by-step **[Hardware Setup Checklist](docs/hardware-setup-checklist.md)**:
+find the port (`scripts/find_port.py`) → calibrate the joints
+(`lerobot-calibrate --robot.type=so101_follower`) → calibrate the board
+(`scripts/calibrate_board.py`, which auto-detects a mirrored board via a `flip`)
+→ tune the gripper (`scripts/gripper_test.py`) → `stage1_demo.py --from e2 --to e4
+--hardware`, then `play.py --hardware`.
 
-1. **Find the port:** `python scripts/find_port.py` → put the `/dev/tty.usbmodem…`
-   into `config/board.local.yaml` (copy from `config/board.example.yaml`).
-2. **Motors + calibration:** follow LeRobot's SO-101 guide
-   (`lerobot-setup-motors` / `lerobot-calibrate --robot.type=so101_follower`).
-   If the bus misbehaves, `../lerobot-experiments/m0-bringup/scan_motor_bus.py`
-   diagnoses it.
-3. **Point at a URDF:** set `arm.urdf_path` (try `chessbot.kinematics.find_urdf()`;
-   otherwise grab the SO-101 URDF from the SO-ARM100 repo / your lerobot-repo).
-4. **Calibrate the board frame:** `python scripts/calibrate_board.py`, place the
-   gripper on the four corner squares when prompted, paste the printed `transform:`
-   block into `config/board.local.yaml`.
-5. **Run for real:** `python stage1_demo.py --from e2 --to e4 --hardware`.
-
-Measure your board's `square_size_m` and the `heights` (table surface, hover) and
-put them in `board.local.yaml` too. The `gripper_open/closed` values and the
-`home()` pose in `arm.py` are starting guesses — tune them on your arm.
+The SO-101 URDF the IK reads is bundled at `urdf/SO101/` (already the config
+default). If the motor bus glitches ("no status packet"),
+`scripts/scan_motor_bus.py <port>` diagnoses it, and `LeRobotArm.connect()` also
+auto-retries. Measure your `square_size_m` and `heights` in `board.local.yaml`.
 
 ## Safety (it moves near a 5-year-old)
 
@@ -116,6 +112,7 @@ put them in `board.local.yaml` too. The `gripper_open/closed` values and the
 
 ## Next
 
-- Wire `engine.ChessBrain` into a game loop (stage 2): she moves → you key it in →
-  robot replies. No camera yet.
-- Then occupancy-diff vision (stage 3) and the Claude voice coach (stage 4).
+- **Stage 3:** a camera that reads her move (occupancy diff) — a `BoardSensor`
+  with a Mock-then-real implementation, the same swap pattern as the arm.
+- **Stage 4:** the Claude voice coach ("what if I go here?"), grounded in
+  Stockfish's analysis.

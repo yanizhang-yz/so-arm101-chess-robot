@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class ArmHardware:
     follower_port: str = "TODO"   # from `lerobot-find-port`, e.g. /dev/tty.usbmodem...
     robot_id: str = "chessbot_follower"
-    urdf_path: str = "TODO"       # SO-101 URDF (see kinematics.find_urdf)
+    urdf_path: str = "urdf/SO101/so101_new_calib.urdf"  # bundled SO-101 model the IK reads
     gripper_open: float = 60.0
     gripper_closed: float = 10.0
 
