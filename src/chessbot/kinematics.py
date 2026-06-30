@@ -76,8 +76,8 @@ class IKSolver:
 
     We use ikpy rather than LeRobot's placo-based RobotKinematics: the placo
     wheels have native-library (urdfdom/tinyxml2) version conflicts on macOS,
-    while ikpy reads the same URDF with no compiled dependencies. Position-only
-    IK, which is the right fit for a 5-DOF arm reaching points on a flat board.
+    while ikpy reads the same URDF with no compiled dependencies. The gripper is
+    aimed straight down (a top-down grasp) so the jaws straddle a piece from above.
     """
 
     ARM_JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
@@ -124,15 +124,19 @@ class IKSolver:
         full[self._active] = np.deg2rad(np.asarray(q_deg, float))
         return full
 
-    def joints_for(self, xyz, current_q_deg, orientation: np.ndarray | None = None) -> np.ndarray:
-        """Position IK for a target gripper point. Returns the 5 arm-joint degrees.
+    def joints_for(self, xyz, current_q_deg, approach=(0.0, 0.0, -1.0)) -> np.ndarray:
+        """IK for a target gripper point with a top-down approach. Returns 5 joint degrees.
 
-        `orientation` is accepted for API compatibility but ignored — position-only
-        IK is the right call for a 5-DOF arm on a flat board.
+        `approach` is the world direction the gripper's pointing (Z) axis should
+        face — default straight down, so the jaws come at the board from above and
+        open horizontally. (A 5-DOF arm can't hit every orientation exactly, so ikpy
+        balances position and approach in a least-squares solve.)
         """
         initial = np.clip(self._full(current_q_deg), self._lower, self._upper)
         full = self.chain.inverse_kinematics(
             target_position=np.asarray(xyz, float),
+            target_orientation=list(approach),
+            orientation_mode="Z",
             initial_position=initial,
         )
         return np.rad2deg(full[self._active])
