@@ -70,7 +70,22 @@ def main() -> None:
     span = max(float(np.linalg.norm(p - q)) for p in pts for q in pts)
     t = BoardToRobot.from_correspondences(board_pts, robot_pts)
 
+    import json
+    import os
+    os.makedirs("outputs", exist_ok=True)
+    with open("outputs/last_calibration.json", "w") as f:
+        json.dump({
+            "squares": REFERENCE_SQUARES,
+            "board_pts": [list(p) for p in board_pts],
+            "robot_pts": [list(p) for p in robot_pts],
+            "span_cm": round(span * 100, 2),
+            "scale": round(t.scale, 6),
+            "theta_rad": round(t.theta_rad, 6),
+            "offset": [round(float(t.offset[0]), 6), round(float(t.offset[1]), 6)],
+        }, f, indent=2)
+
     print(f"\nRecorded-point spread: {span * 100:.1f} cm  (expect ~40 cm corner-to-corner).")
+    print("(raw points saved to outputs/last_calibration.json)")
     if span < 0.10 or not (0.5 <= t.scale <= 2.0):
         print(f"\n⚠️  These look WRONG (scale {t.scale:.3f}, spread {span * 100:.1f} cm).")
         print("    The corners came out clustered. Hold each corner steadier/longer and")
