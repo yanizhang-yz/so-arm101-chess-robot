@@ -101,6 +101,22 @@ class IKSolver:
                 f"URDF chain has {len(self._active)} movable joints, expected "
                 f"{len(self.ARM_JOINTS)}: {urdf_path}"
             )
+        # The arm's measured pose can read slightly past the URDF joint limits
+        # (calibration offsets), and ikpy/scipy reject an IK starting guess that's
+        # out of bounds. Widen the active joints a little, then clamp the guess in
+        # joints_for() so the solver always starts inside the bounds.
+        margin = 0.35  # radians (~20 deg)
+        for i in self._active:
+            b = self.chain.links[i].bounds
+            if b and b[0] is not None and b[1] is not None:
+                self.chain.links[i].bounds = (b[0] - margin, b[1] + margin)
+        lows, highs = [], []
+        for link in self.chain.links:
+            b = getattr(link, "bounds", (None, None)) or (None, None)
+            lows.append(-np.inf if b[0] is None else b[0])
+            highs.append(np.inf if b[1] is None else b[1])
+        self._lower = np.array(lows, dtype=float)
+        self._upper = np.array(highs, dtype=float)
 
     def _full(self, q_deg) -> np.ndarray:
         """A full ikpy joint vector (radians) built from our 5 arm-joint degrees."""
@@ -114,9 +130,10 @@ class IKSolver:
         `orientation` is accepted for API compatibility but ignored — position-only
         IK is the right call for a 5-DOF arm on a flat board.
         """
+        initial = np.clip(self._full(current_q_deg), self._lower, self._upper)
         full = self.chain.inverse_kinematics(
             target_position=np.asarray(xyz, float),
-            initial_position=self._full(current_q_deg),
+            initial_position=initial,
         )
         return np.rad2deg(full[self._active])
 
