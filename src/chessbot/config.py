@@ -60,7 +60,7 @@ def _overlay(s: Settings, data: dict) -> None:
         s.geometry = BoardGeometry(square_size_m=float(data["square_size_m"]))
     if (t := data.get("transform")):
         s.transform = BoardToRobot(scale=t.get("scale", 1.0), theta_rad=t.get("theta_rad", 0.0),
-                                   offset=t.get("offset", [0.0, 0.0]))
+                                   offset=t.get("offset", [0.0, 0.0]), flip=t.get("flip", 1.0))
     if (h := data.get("heights")):
         s.heights = Heights(**h)
     if (ob := data.get("offboard")):

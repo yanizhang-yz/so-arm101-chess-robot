@@ -22,3 +22,16 @@ def test_fit_recovers_a_known_similarity():
     assert np.allclose(fit.offset, [0.1, -0.2], atol=1e-6)
     # And it reproduces the mapping on a held-out point.
     assert np.allclose(fit.xy((0.12, 0.16)), truth.xy((0.12, 0.16)), atol=1e-6)
+
+
+def test_fit_handles_a_mirrored_board():
+    # A mirrored board (left/right flip) must still fit — the scale must NOT collapse.
+    truth = BoardToRobot(scale=0.9, theta_rad=0.7, offset=[0.3, 0.1], flip=-1)
+    board_pts = [(0.0, 0.0), (0.28, 0.0), (0.0, 0.28), (0.28, 0.28)]
+    robot_pts = [tuple(truth.xy(p)) for p in board_pts]
+
+    fit = BoardToRobot.from_correspondences(board_pts, robot_pts)
+    assert fit.flip == -1
+    assert fit.scale == pytest.approx(0.9, abs=1e-6)
+    for p in board_pts:
+        assert np.allclose(fit.xy(p), truth.xy(p), atol=1e-6)

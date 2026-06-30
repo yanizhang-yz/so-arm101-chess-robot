@@ -101,6 +101,7 @@ def main() -> None:
     print("transform:")
     print(f"  scale: {t.scale:.6f}")
     print(f"  theta_rad: {t.theta_rad:.6f}")
+    print(f"  flip: {int(t.flip)}")
     print(f"  offset: [{t.offset[0]:.6f}, {t.offset[1]:.6f}]")
 
 

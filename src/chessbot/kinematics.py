@@ -23,11 +23,18 @@ import numpy as np
 
 @dataclass
 class BoardToRobot:
-    """robot_xy = scale * R(theta) @ board_xy + offset (z handled separately)."""
+    """robot_xy = scale * R(theta) @ (board_xy mirrored by `flip`) + offset.
+
+    `flip` is +1 or -1. The board's layout can be MIRRORED relative to the arm's
+    frame (a left/right handedness flip, depending on how the board is placed), so
+    the fit has to allow a reflection — not just a rotation. Forcing a pure
+    rotation makes the least-squares scale collapse toward 0 on a mirrored board.
+    """
 
     scale: float = 1.0
     theta_rad: float = 0.0
     offset: np.ndarray | None = None  # shape (2,), meters
+    flip: float = 1.0                 # +1 normal, -1 mirrored (reflection on the y axis)
 
     def __post_init__(self) -> None:
         self.offset = np.zeros(2) if self.offset is None else np.asarray(self.offset, float).reshape(2)
@@ -35,13 +42,14 @@ class BoardToRobot:
     def xy(self, board_xy: tuple[float, float]) -> np.ndarray:
         c, s = math.cos(self.theta_rad), math.sin(self.theta_rad)
         r = np.array([[c, -s], [s, c]])
-        return self.scale * (r @ np.asarray(board_xy, float)) + self.offset
+        p = np.asarray(board_xy, float) * np.array([1.0, self.flip])
+        return self.scale * (r @ p) + self.offset
 
     @classmethod
     def from_correspondences(
         cls, board_pts: list[tuple[float, float]], robot_pts: list[tuple[float, float]]
     ) -> "BoardToRobot":
-        """Least-squares similarity fit from >=2 (board, robot) point pairs (Umeyama)."""
+        """Least-squares similarity fit (Umeyama) that allows a reflection."""
         b = np.asarray(board_pts, float)
         w = np.asarray(robot_pts, float)
         if b.shape != w.shape or len(b) < 2:
@@ -50,14 +58,17 @@ class BoardToRobot:
         bb, ww = b - bc, w - wc
         cov = (ww.T @ bb) / len(b)
         u, sv, vt = np.linalg.svd(cov)
-        d = np.ones(2)
-        if np.linalg.det(u @ vt) < 0:
-            d[-1] = -1.0
-        r = u @ np.diag(d) @ vt
+        r = u @ vt  # orthogonal part; det may be -1 (a mirror) — and that's allowed
         var_b = float((bb ** 2).sum() / len(b))
-        scale = float((sv * d).sum() / var_b) if var_b > 0 else 1.0
-        offset = wc - scale * (r @ bc)
-        return cls(scale=scale, theta_rad=math.atan2(r[1, 0], r[0, 0]), offset=offset)
+        scale = float(sv.sum() / var_b) if var_b > 0 else 1.0
+        if np.linalg.det(r) < 0:  # mirrored board: pull the reflection out into `flip`
+            flip = -1.0
+            rot = r @ np.array([[1.0, 0.0], [0.0, -1.0]])
+        else:
+            flip = 1.0
+            rot = r
+        offset = wc - scale * (rot @ (bc * np.array([1.0, flip])))
+        return cls(scale=scale, theta_rad=math.atan2(rot[1, 0], rot[0, 0]), offset=offset, flip=flip)
 
 
 class IKSolver:

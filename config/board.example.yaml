@@ -10,6 +10,7 @@ square_size_m: 0.04          # measure your board's square size
 transform:
   scale: 1.0
   theta_rad: 0.0
+  flip: 1                    # +1 normal, -1 if your board is mirrored vs the arm
   offset: [0.0, 0.0]
 
 heights:
@@ -29,7 +30,7 @@ offboard:
       - [-0.13, 0.00]
 
 arm:
-  follower_port: "TODO"      # from: python scripts/find_port.py
+  follower_port: "/dev/tty.usbmodem5B415325701"      # from: python scripts/find_port.py
   robot_id: "chessbot_follower"
   urdf_path: "TODO"          # path to your SO-101 URDF
   gripper_open: 60.0
