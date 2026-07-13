@@ -11,6 +11,18 @@ calibrated and moving** — it reaches the right squares and now aims straight d
 The **last thing before the first real pickup** is tuning `grasp_lift` with a real
 piece.
 
+## Do this FIRST next session (housekeeping)
+
+**Scrub the `Co-Authored-By: Claude` trailers from git history** — Yani is the
+sole contributor. Deferred to a fresh session because it rewrites history and
+force-pushes. From the repo root:
+
+```bash
+git filter-branch --force --msg-filter 'sed "/Co-Authored-By: Claude/d"' -- --all
+git push --force-with-lease --all
+# verify: git log --format='%b' | grep -c Co-Authored   # should print 0
+```
+
 ## What works
 
 - **Offline (no arm):** `stage1_demo.py` (pick-and-place) and `play.py` (full game
