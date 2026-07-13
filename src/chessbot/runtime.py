@@ -28,5 +28,6 @@ def build_motion(settings: Settings, *, hardware: bool) -> ChessMotion:
         geometry=settings.geometry,
         transform=settings.transform,
         heights=settings.heights,
+        pieces=settings.pieces,
         offboard=settings.offboard,
     )

@@ -14,7 +14,7 @@ import yaml
 
 from .board import BoardGeometry
 from .kinematics import BoardToRobot
-from .motion import Heights, OffBoard
+from .motion import DEFAULT_PIECE_HEIGHTS, Heights, OffBoard, PieceGrasp
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -42,6 +42,7 @@ class Settings:
     geometry: BoardGeometry = field(default_factory=BoardGeometry)
     transform: BoardToRobot = field(default_factory=BoardToRobot)
     heights: Heights = field(default_factory=Heights)
+    pieces: PieceGrasp = field(default_factory=PieceGrasp)
     offboard: OffBoard = field(default_factory=_default_offboard)
     arm: ArmHardware = field(default_factory=ArmHardware)
 
@@ -63,6 +64,14 @@ def _overlay(s: Settings, data: dict) -> None:
                                    offset=t.get("offset", [0.0, 0.0]), flip=t.get("flip", 1.0))
     if (h := data.get("heights")):
         s.heights = Heights(**h)
+    if (pz := data.get("pieces")):
+        heights = dict(DEFAULT_PIECE_HEIGHTS)  # partial overrides keep the other defaults
+        heights.update({str(k).upper(): float(v) for k, v in (pz.get("heights_m") or {}).items()})
+        s.pieces = PieceGrasp(
+            heights_m=heights,
+            grip_below_top_m=float(pz.get("grip_below_top_m", PieceGrasp.grip_below_top_m)),
+            min_z_m=float(pz.get("min_z_m", PieceGrasp.min_z_m)),
+        )
     if (ob := data.get("offboard")):
         s.offboard = OffBoard(
             graveyard=[tuple(p) for p in ob.get("graveyard", [])],

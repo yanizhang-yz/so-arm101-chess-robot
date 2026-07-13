@@ -124,22 +124,55 @@ class IKSolver:
         full[self._active] = np.deg2rad(np.asarray(q_deg, float))
         return full
 
-    def joints_for(self, xyz, current_q_deg, approach=(0.0, 0.0, -1.0)) -> np.ndarray:
+    # Fallback IK starting poses (degrees). The solver is a local optimizer: from
+    # one unlucky starting pose it can settle 5 cm away from a target it could
+    # reach perfectly from another. Trying a few spread-out poses fixes that.
+    _RESTARTS = [(0.0, -45.0, 60.0, 45.0, 0.0), (0.0, -90.0, 90.0, 0.0, 0.0),
+                 (45.0, -45.0, 60.0, 45.0, 0.0), (-45.0, -45.0, 60.0, 45.0, 0.0)]
+
+    def joints_for(self, xyz, current_q_deg, tol_mm: float = 3.0) -> np.ndarray:
         """IK for a target gripper point with a top-down approach. Returns 5 joint degrees.
 
-        `approach` is the world direction the gripper's pointing (Z) axis should
-        face — default straight down, so the jaws come at the board from above and
-        open horizontally. (A 5-DOF arm can't hit every orientation exactly, so ikpy
-        balances position and approach in a least-squares solve.)
+        Tries a perfectly vertical approach first (jaws come straight down and open
+        horizontally). If that can't reach — far squares sit at the edge of the
+        arm's reach when the wrist must hang straight down — it retries with the
+        approach tilted a little outward, which lets the wrist lean toward the
+        target. Each approach is solved from the current pose plus a few fallback
+        poses, because the underlying solver is local and can get stuck.
         """
-        initial = np.clip(self._full(current_q_deg), self._lower, self._upper)
-        full = self.chain.inverse_kinematics(
-            target_position=np.asarray(xyz, float),
-            target_orientation=list(approach),
-            orientation_mode="Z",
-            initial_position=initial,
-        )
-        return np.rad2deg(full[self._active])
+        target = np.asarray(xyz, float)
+        guesses = [np.clip(self._full(current_q_deg), self._lower, self._upper)]
+        guesses += [np.clip(self._full(g), self._lower, self._upper) for g in self._RESTARTS]
+        best_err, best_full = np.inf, None
+        for approach in self._approaches(target):
+            for guess in guesses:
+                full = self.chain.inverse_kinematics(
+                    target_position=target,
+                    target_orientation=list(approach),
+                    orientation_mode="Z",
+                    initial_position=guess,
+                )
+                err = 1000.0 * float(np.linalg.norm(self.chain.forward_kinematics(full)[:3, 3] - target))
+                if err < best_err:
+                    best_err, best_full = err, full
+                if err <= tol_mm:
+                    return np.rad2deg(full[self._active])
+        print(f"  ik: closest solution is {best_err:.0f} mm from "
+              f"({target[0]:.3f}, {target[1]:.3f}, {target[2]:.3f}) — is this spot within reach?")
+        return np.rad2deg(best_full[self._active])
+
+    def _approaches(self, target) -> list[np.ndarray]:
+        """Approach directions to try: straight down, then tilted a few degrees
+        outward (away from the base) — trading a slightly angled grab for the
+        extra reach the far squares need."""
+        out = [np.array([0.0, 0.0, -1.0])]
+        r = float(np.hypot(target[0], target[1]))
+        if r > 1e-6:
+            ux, uy = target[0] / r, target[1] / r
+            for deg in (8.0, 16.0, 24.0):
+                t = np.deg2rad(deg)
+                out.append(np.array([np.sin(t) * ux, np.sin(t) * uy, -np.cos(t)]))
+        return out
 
     def forward_xyz(self, q_deg) -> np.ndarray:
         """Forward kinematics: 5 arm-joint degrees -> gripper (x, y, z) in meters."""

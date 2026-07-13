@@ -15,8 +15,24 @@ transform:
 
 heights:
   table_z: 0.02              # robot-frame height of the board surface
-  grasp_lift: 0.0            # close the gripper this far above the surface
-  hover: 0.06               # safe travel height above the board
+  grasp_lift: 0.0            # global trim added to every grab height
+  hover: 0.08                # travel clearance above the grip point — a carried
+                             # piece hangs below the jaws, so keep this taller
+                             # than your king, plus a little margin
+
+# Full piece heights in meters — measure YOURS base-to-tip with a ruler.
+# The jaws close grip_below_top_m below each piece's tip (under the head/collar,
+# where the head above keeps the piece from slipping out).
+pieces:
+  heights_m:
+    P: 0.032
+    N: 0.045
+    B: 0.050
+    R: 0.040
+    Q: 0.058
+    K: 0.065
+  grip_below_top_m: 0.012
+  min_z_m: 0.008             # never grab lower than this (protects jaws vs. board)
 
 # Where captured pieces and spare promotion pieces live (board-frame x, y).
 offboard:

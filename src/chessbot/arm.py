@@ -19,7 +19,7 @@ class ArmBackend(Protocol):
     def connect(self) -> None: ...
     def disconnect(self) -> None: ...
     def goto(self, x: float, y: float, z: float) -> None: ...
-    def set_gripper(self, open_: bool) -> None: ...
+    def set_gripper(self, open_: bool) -> float | None: ...
     def home(self) -> None: ...
 
 
@@ -39,8 +39,9 @@ class MockArm:
     def goto(self, x: float, y: float, z: float) -> None:
         self._emit(("goto", round(x, 4), round(y, 4), round(z, 4)))
 
-    def set_gripper(self, open_: bool) -> None:
+    def set_gripper(self, open_: bool) -> float | None:
         self._emit(("gripper", "open" if open_ else "close"))
+        return None
 
     def home(self) -> None:
         self._emit(("home",))
@@ -67,8 +68,13 @@ class LeRobotArm:
     urdf_path: str
     robot_id: str = "chessbot_follower"
     gripper_open: float = 60.0     # 0..100; tune after calibration
-    gripper_closed: float = 10.0
+    gripper_closed: float = 10.0   # hard floor — the grip stops earlier on contact
     settle_s: float = 0.6
+    # Adaptive grip: close in small steps and stop when the jaws meet the piece.
+    grip_step: float = 4.0         # gripper units to close per step
+    grip_settle_s: float = 0.12    # wait for the jaws to follow each step
+    grip_stall: float = 3.5        # measured-vs-commanded lag that means "contact"
+    grip_squeeze: float = 2.0      # extra close past contact, for a firm hold
 
     def __post_init__(self) -> None:
         from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig  # lazy
@@ -115,14 +121,61 @@ class LeRobotArm:
         self._robot.send_action(action)
         time.sleep(self.settle_s)
 
-    def set_gripper(self, open_: bool) -> None:
+    def _gripper_pos(self) -> float:
+        return float(self._robot.get_observation()["gripper.pos"])
+
+    def _wait_gripper_still(self, timeout_s: float = 2.5) -> float:
+        """Poll until the jaws stop moving; returns where they settled."""
         import time
-        self._gripper = self.gripper_open if open_ else self.gripper_closed
+        last = self._gripper_pos()
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            time.sleep(self.grip_settle_s)
+            now = self._gripper_pos()
+            if abs(now - last) < 0.5:
+                return now
+            last = now
+        return last
+
+    def set_gripper(self, open_: bool) -> float | None:
+        """Open fully, or close adaptively: step the jaws shut and stop when they
+        jam against something — that's the piece. Works for any piece width
+        (pawn to king) without per-piece tuning; a fixed close width would either
+        crush a wide piece or eject it. Returns the width the jaws settled at
+        (None on open).
+
+        Contact = the measured width lags the commanded one AND the jaws have
+        stopped moving, seen twice in a row. Either test alone false-triggers
+        while the jaws are still accelerating or mid-travel."""
+        import time
         obs = self._robot.get_observation()  # hold the arm still, only move the gripper
-        action = {f"{m}.pos": obs[f"{m}.pos"] for m in self._arm_motors}
-        action["gripper.pos"] = self._gripper
-        self._robot.send_action(action)
+        hold = {f"{m}.pos": obs[f"{m}.pos"] for m in self._arm_motors}
+        if open_:
+            self._gripper = self.gripper_open
+            self._robot.send_action({**hold, "gripper.pos": self._gripper})
+            self._wait_gripper_still()
+            return None
+        target = actual = self._wait_gripper_still()  # close from where the jaws truly are
+        stalled = 0
+        while target > self.gripper_closed:
+            target = max(self.gripper_closed, target - self.grip_step)
+            self._robot.send_action({**hold, "gripper.pos": target})
+            time.sleep(self.grip_settle_s)
+            prev, actual = actual, self._gripper_pos()
+            if actual - target >= self.grip_stall and abs(actual - prev) < 1.0:
+                stalled += 1
+                if stalled >= 2:
+                    self._gripper = max(self.gripper_closed, actual - self.grip_squeeze)
+                    self._robot.send_action({**hold, "gripper.pos": self._gripper})
+                    time.sleep(self.settle_s)
+                    print(f"  grip: contact at width {actual:.1f}, holding at {self._gripper:.1f}")
+                    return self._gripper
+            else:
+                stalled = 0
+        self._gripper = self.gripper_closed
         time.sleep(self.settle_s)
+        print("  grip: jaws closed all the way — probably didn't catch a piece")
+        return self._gripper
 
     def home(self) -> None:
         # A neutral, tucked pose. These joint angles are a starting guess — tune.

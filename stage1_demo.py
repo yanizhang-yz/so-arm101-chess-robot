@@ -27,7 +27,7 @@ def build_ops(args) -> list[Op]:
         board = chess.Board(args.fen) if args.fen else chess.Board()
         return plan_move(board, chess.Move.from_uci(args.move))
     if args.from_sq and args.to_sq:
-        return [Op("carry", src=args.from_sq, dst=args.to_sq)]
+        return [Op("carry", src=args.from_sq, dst=args.to_sq, piece=args.piece)]
     raise SystemExit("give --from/--to or --move (see --help)")
 
 
@@ -35,6 +35,8 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--from", dest="from_sq", help="source square, e.g. e2")
     p.add_argument("--to", dest="to_sq", help="destination square, e.g. e4")
+    p.add_argument("--piece", default="P",
+                   help="with --from/--to: what's on the square (P N B R Q K) — sets the grab height")
     p.add_argument("--move", help="UCI move, e.g. e2e4 (handles captures/castling/promotion)")
     p.add_argument("--fen", help="position the --move applies to (default: start position)")
     p.add_argument("--hardware", action="store_true", help="drive a real SO-ARM101 (needs lerobot)")
