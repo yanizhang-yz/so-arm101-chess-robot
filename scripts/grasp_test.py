@@ -15,6 +15,9 @@ then sets it back down and releases. After each try, adjust and go again:
     d 3        grip 3 mm LOWER on the piece (slipping off the tip? go down)
     x 2        nudge the target +2 mm in robot x (fix a sideways miss)
     y -2       nudge the target -2 mm in robot y
+    o 55       open the jaws only this wide on approach (jaws brushing the
+               neighbors on the way down? make this smaller — just wide enough
+               to clear the piece you're grabbing)
     q          quit and print the numbers to save in config/board.local.yaml
 
 When a grab looks centered and the piece rides up firmly, you're done — hit q
@@ -49,6 +52,7 @@ def main() -> None:
     piece = args.piece.upper()
     bx, by = s.geometry.square_center(args.square)
     dx = dy = dz = 0.0  # session adjustments, meters
+    open_changed = False
 
     print(f"Grasp test: {piece} on {args.square}. Clear the neighboring squares!")
     arm = build_arm(s, hardware=True)
@@ -73,7 +77,7 @@ def main() -> None:
             vertical(arm, x, y, grasp_z, travel_z)
 
             while True:
-                raw = input("grasp [g/u/d/x/y/q] > ").strip().lower().split()
+                raw = input("grasp [g/u/d/x/y/o/q] > ").strip().lower().split()
                 if not raw:
                     continue
                 cmd, val = raw[0], (float(raw[1]) / 1000.0 if len(raw) > 1 else 0.002)
@@ -87,17 +91,26 @@ def main() -> None:
                     dx += float(raw[1]) / 1000.0
                 elif cmd == "y":
                     dy += float(raw[1]) / 1000.0
+                elif cmd == "o":
+                    if len(raw) < 2:
+                        print("  usage: o 55   (jaw opening, 0-100)")
+                        continue
+                    arm.gripper_open = max(10.0, min(100.0, float(raw[1])))
+                    open_changed = True
+                    print(f"  approach opening -> {arm.gripper_open:.0f}")
                 elif cmd == "q":
                     print("\nSave in config/board.local.yaml:")
                     print("pieces:\n  heights_m:")
                     print(f"    {piece}: {s.pieces.height_of(piece) + dz:.3f}")
+                    if open_changed:
+                        print(f"arm:\n  gripper_open: {arm.gripper_open:.0f}")
                     if dx or dy:
                         ox, oy = (float(v) for v in s.transform.offset)
                         print("# only if EVERY square is off the same way (else recalibrate):")
                         print(f"transform:\n  offset: [{ox + dx:.6f}, {oy + dy:.6f}]")
                     return
                 else:
-                    print("  g=grab  u/d <mm>=grip higher/lower  x/y <mm>=nudge  q=quit")
+                    print("  g=grab  u/d <mm>=grip higher/lower  x/y <mm>=nudge  o <w>=jaw opening  q=quit")
                     continue
                 print(f"  adjust: dz={1000 * dz:+.0f}mm dx={1000 * dx:+.0f}mm dy={1000 * dy:+.0f}mm  (g to try)")
     except ConnectionError:
