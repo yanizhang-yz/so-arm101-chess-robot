@@ -5,8 +5,10 @@
 square_size_m: 0.04          # measure your board's square size
 
 # Board-frame -> robot-frame transform. Produce these numbers by running
-# scripts/calibrate_board.py on the arm. Defaults below are identity (only
-# meaningful once calibrated).
+# scripts/calibrate_board.py on the arm (it offers to write them here itself).
+# Defaults below are identity (only meaningful once calibrated). Calibration
+# may also add warp_x / warp_y / warp_box — a small correction for the arm's
+# own position distortion; leave those alone.
 transform:
   scale: 1.0
   theta_rad: 0.0

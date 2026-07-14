@@ -23,27 +23,52 @@ import numpy as np
 
 @dataclass
 class BoardToRobot:
-    """robot_xy = scale * R(theta) @ (board_xy mirrored by `flip`) + offset.
+    """robot_xy = scale * R(theta) @ (board_xy mirrored by `flip`) + offset [+ warp].
 
     `flip` is +1 or -1. The board's layout can be MIRRORED relative to the arm's
     frame (a left/right handedness flip, depending on how the board is placed), so
     the fit has to allow a reflection — not just a rotation. Forcing a pure
     rotation makes the least-squares scale collapse toward 0 on a mirrored board.
+
+    `warp_x`/`warp_y` (optional, 6 coefficients each) add a small quadratic
+    correction on top of the rigid map. A rigid similarity assumes the arm's own
+    position sense is perfect; in reality it's distorted by 1-2 cm that varies
+    smoothly across the workspace, and the warp soaks that up. Outside `warp_box`
+    (the region the calibration points covered) the correction is held at the
+    box edge instead of extrapolating — quadratics explode when extrapolated.
     """
 
     scale: float = 1.0
     theta_rad: float = 0.0
     offset: np.ndarray | None = None  # shape (2,), meters
     flip: float = 1.0                 # +1 normal, -1 mirrored (reflection on the y axis)
+    warp_x: np.ndarray | None = None  # quadratic residual coeffs [1, x, y, x², xy, y²]
+    warp_y: np.ndarray | None = None
+    warp_box: np.ndarray | None = None  # [xmin, ymin, xmax, ymax] the warp was fitted on
 
     def __post_init__(self) -> None:
         self.offset = np.zeros(2) if self.offset is None else np.asarray(self.offset, float).reshape(2)
+        self.warp_x = None if self.warp_x is None else np.asarray(self.warp_x, float).reshape(6)
+        self.warp_y = None if self.warp_y is None else np.asarray(self.warp_y, float).reshape(6)
+        self.warp_box = None if self.warp_box is None else np.asarray(self.warp_box, float).reshape(4)
+
+    @staticmethod
+    def _quad_features(x: float, y: float) -> np.ndarray:
+        return np.array([1.0, x, y, x * x, x * y, y * y])
 
     def xy(self, board_xy: tuple[float, float]) -> np.ndarray:
         c, s = math.cos(self.theta_rad), math.sin(self.theta_rad)
         r = np.array([[c, -s], [s, c]])
         p = np.asarray(board_xy, float) * np.array([1.0, self.flip])
-        return self.scale * (r @ p) + self.offset
+        out = self.scale * (r @ p) + self.offset
+        if self.warp_x is not None and self.warp_y is not None:
+            bx, by = float(board_xy[0]), float(board_xy[1])
+            if self.warp_box is not None:
+                bx = float(np.clip(bx, self.warp_box[0], self.warp_box[2]))
+                by = float(np.clip(by, self.warp_box[1], self.warp_box[3]))
+            f = self._quad_features(bx, by)
+            out = out + np.array([f @ self.warp_x, f @ self.warp_y])
+        return out
 
     @classmethod
     def from_correspondences(
@@ -69,6 +94,27 @@ class BoardToRobot:
             rot = r
         offset = wc - scale * (rot @ (bc * np.array([1.0, flip])))
         return cls(scale=scale, theta_rad=math.atan2(rot[1, 0], rot[0, 0]), offset=offset, flip=flip)
+
+    @classmethod
+    def with_warp(
+        cls, board_pts: list[tuple[float, float]], robot_pts: list[tuple[float, float]]
+    ) -> "BoardToRobot":
+        """Similarity fit plus a quadratic warp over the leftover residuals.
+
+        Needs >= 8 well-spread points (the warp has 6 coefficients per axis);
+        with fewer, returns the plain similarity fit.
+        """
+        t = cls.from_correspondences(board_pts, robot_pts)
+        if len(board_pts) < 8:
+            return t
+        b = np.asarray(board_pts, float)
+        resid = np.asarray(robot_pts, float) - np.array([t.xy(p) for p in board_pts])
+        feats = np.array([cls._quad_features(x, y) for x, y in b])
+        wx, *_ = np.linalg.lstsq(feats, resid[:, 0], rcond=None)
+        wy, *_ = np.linalg.lstsq(feats, resid[:, 1], rcond=None)
+        t.warp_x, t.warp_y = wx, wy
+        t.warp_box = np.array([b[:, 0].min(), b[:, 1].min(), b[:, 0].max(), b[:, 1].max()])
+        return t
 
 
 class IKSolver:

@@ -1,168 +1,156 @@
 #!/usr/bin/env python
-"""Calibrate the board -> robot transform (HARDWARE; run once after setup).
+"""Calibrate the board -> robot transform by DRIVING, not holding (HARDWARE).
 
-Disables the arm's torque so you can move the gripper by hand. For each corner
-square: rest the gripper tip on the CENTER of that square, then press ENTER to
-record. You control the timing — take as long as you need. The script shows the
-live position and how far it is from the previous corner, and refuses to record a
-point that's too close to the last one (which would mean the arm hadn't moved).
+CLEAR THE BOARD FIRST — the arm dips low over each reference square.
 
-    python scripts/calibrate_board.py
+For each of 9 squares, the arm moves to where it currently *believes* the
+square center is and hovers just above the board. You look straight down at it
+and nudge with millimeter commands until the jaw tip is over the center:
 
-Touch six squares — the four corners plus two mid-board (extra points average
-out hand-placement noise). It then fits a transform, shows how far off each
-recorded square is from the fit (in mm — your calibration quality, square by
-square), and prints YAML for config/board.local.yaml (raw points go to
-outputs/).
+    x 3    move +3 mm in robot x        x -2   move the other way
+    y 2    move +2 mm in robot y
+    ENTER  looks centered — record it and move on
 
-Touching well matters more than touching fast: rest the very TIP of the closed
-jaws on the center of the square, let go so the arm isn't being pushed
-sideways, and only then press ENTER.
+Why driving beats holding: the arm calibrates in exactly the pose it plays in
+(gripper pointing down, motors on), so its internal quirks — model error,
+servo sag, where the "tip" really is — are baked into the recorded points and
+cancel out at play time. Hand-held calibration graded your touches against the
+arm's imperfect self-model and blamed you for the difference (~2 cm that never
+went away, no matter how carefully you touched).
+
+It then fits the rigid transform PLUS a smooth quadratic warp over the 9
+points (the leftover distortion), reports per-square quality in mm, and offers
+to save into config/board.local.yaml. Raw points go to outputs/.
+
+Needs an existing rough transform in config (yours points "roughly right" —
+that's plenty; the nudges do the rest).
 """
 from __future__ import annotations
 
-import select
-import sys
-
 import numpy as np
 
-from chessbot.arm import LeRobotArm
 from chessbot.config import ROOT, load
 from chessbot.kinematics import BoardToRobot
+from chessbot.runtime import build_arm
 
-# Four corners span the board; two mid-board squares let the least-squares fit
-# average out per-touch noise instead of trusting each corner completely.
-# Ordered as a walk around the rim, then into the middle.
-REFERENCE_SQUARES = ["a1", "h1", "h8", "a8", "d4", "e5"]
-MIN_GAP_M = 0.05  # refuse a point within 5 cm of the previous one (arm hadn't moved)
+# Nine squares: the rim (walked in order) plus the center. Nine well-spread
+# anchors are what the quadratic warp needs to pin down the arm's distortion.
+REFERENCE_SQUARES = ["a1", "d1", "h1", "h4", "h8", "e8", "a8", "a4", "d4"]
 
 # Where each square is, physically — stand on WHITE's side (the side whose
 # pieces start on ranks 1 and 2; mark a1 with a sticker so every calibration
 # agrees with the last one).
 WHERE = {
     "a1": "NEAR-LEFT corner square (your sticker)",
-    "h1": "NEAR-RIGHT corner square (same edge as a1)",
+    "d1": "near edge, 4th square from the left",
+    "h1": "NEAR-RIGHT corner square",
+    "h4": "right edge, 4th square from the near side",
     "h8": "FAR-RIGHT corner square (diagonal from a1)",
+    "e8": "far edge, 5th square from the left",
     "a8": "FAR-LEFT corner square",
-    "d4": "middle, a bit LEFT and NEAR of center",
-    "e5": "middle, a bit RIGHT and FAR of center",
+    "a4": "left edge, 4th square from the near side",
+    "d4": "middle of the board, a bit left and near of center",
 }
+
+TOUCH_ABOVE_M = 0.015  # nudge height: low enough to judge centering by eye
 
 
 def show_map(target: str) -> None:
-    """A little map of the board from White's side, # marking the square to touch."""
+    """A little map of the board from White's side, # marking the square."""
     print("        (far side)")
     for rank in range(8, 0, -1):
-        row = "".join(
-            " #" if f + str(rank) == target else " ."
-            for f in "abcdefgh"
-        )
+        row = "".join(" #" if f + str(rank) == target else " ." for f in "abcdefgh")
         print(f"   {rank} |{row}")
     print("      " + " ".join("abcdefgh"))
     print("        (your side = White's side)")
 
 
-def _dist(a, b) -> float:
-    return float(np.hypot(a[0] - b[0], a[1] - b[1]))
-
-
-def capture(arm: LeRobotArm, square: str, prev: tuple[float, float] | None) -> tuple[float, float]:
-    """Show live position; record on ENTER. Rejects points too close to `prev`."""
-    print(f"\n=== {square}: {WHERE.get(square, '')} ===")
-    show_map(square)
-    print(f"Rest the gripper tip on the CENTER of {square}, then press ENTER.")
+def nudge_loop(arm, x: float, y: float, z: float) -> tuple[float, float]:
+    """Let the user walk the tip onto the square center; returns the final xy."""
     while True:
-        x, y = arm.ee_xy()
-        note = f"  ({_dist((x, y), prev) * 100:.0f} cm from last)" if prev else ""
-        print(f"   {square}: ({x:+.3f}, {y:+.3f}){note}      ", end="\r", flush=True)
-        if select.select([sys.stdin], [], [], 0.2)[0]:
-            sys.stdin.readline()
-            if prev and _dist((x, y), prev) < MIN_GAP_M:
-                print(f"\n   only {_dist((x, y), prev) * 100:.0f} cm from the last corner — "
-                      "move to the real corner and press ENTER again.")
-                continue
-            print(f"\n   recorded {square}: ({x:+.3f}, {y:+.3f})")
-            return (float(x), float(y))
+        raw = input("   nudge [x/y <mm>, ENTER=centered] > ").strip().lower().split()
+        if not raw:
+            return x, y
+        try:
+            axis, mm = raw[0], float(raw[1])
+        except (IndexError, ValueError):
+            print("   like this:  x 3   or   y -2   (mm); plain ENTER when centered")
+            continue
+        if axis == "x":
+            x += mm / 1000.0
+        elif axis == "y":
+            y += mm / 1000.0
+        else:
+            print("   x or y only")
+            continue
+        arm.goto(x, y, z)
 
 
 def main() -> None:
     settings = load()
     geo = settings.geometry
-    a = settings.arm
-    if a.follower_port == "TODO" or a.urdf_path == "TODO":
-        raise SystemExit("Set arm.follower_port and arm.urdf_path in config/board.local.yaml first.")
+    if settings.arm.follower_port == "TODO":
+        raise SystemExit("Set arm.follower_port in config/board.local.yaml first.")
 
-    arm = LeRobotArm(port=a.follower_port, urdf_path=a.urdf_path, robot_id=a.robot_id)
+    z_touch = settings.heights.table_z + TOUCH_ABOVE_M
+    z_travel = settings.heights.table_z + settings.heights.hover + 0.03
+
+    print("Driving calibration. CLEAR THE BOARD — the arm dips low over each square.")
+    print("Stand on WHITE's side: a1 = near-left (sticker!), h1 = near-right,")
+    print("a8 = far-left, h8 = far-right.\n")
+
+    arm = build_arm(settings, hardware=True)
     arm.connect()
-    arm.relax()
-    print("Torque off — move the arm by hand. Take your time; press ENTER at each square.")
-    print("Tip: rest the jaw TIP on the square center, take your hand away, THEN press ENTER.")
-    print("\nOrientation: stand on WHITE's side (pieces on ranks 1-2 in front of you).")
-    print("a1 = near-left, h1 = near-right, a8 = far-left, h8 = far-right.")
-    print("Mark a1 with a sticker so every calibration uses the same corner!")
-
     board_pts, robot_pts = [], []
-    prev: tuple[float, float] | None = None
     try:
         for sq in REFERENCE_SQUARES:
-            pt = capture(arm, sq, prev)
+            print(f"\n=== {sq}: {WHERE[sq]} ===")
+            show_map(sq)
+            gx, gy = (float(v) for v in settings.transform.xy(geo.square_center(sq)))
+            arm.goto(gx, gy, z_travel)
+            arm.goto(gx, gy, z_touch)
+            print("   arm is low over its GUESS of the center — nudge it onto the center.")
+            fx, fy = nudge_loop(arm, gx, gy, z_touch)
             board_pts.append(geo.square_center(sq))
-            robot_pts.append(pt)
-            prev = pt
+            robot_pts.append((fx, fy))
+            arm.goto(fx, fy, z_travel)
+        arm.home()
+    except ConnectionError:
+        print("\nThe motor bus stopped answering — power-cycle the arm and re-run.")
+        return
     finally:
         arm.disconnect()
 
-    pts = np.array(robot_pts)
-    span = max(_dist(p, q) for p in pts for q in pts)
-    t = BoardToRobot.from_correspondences(board_pts, robot_pts)
-
-    # How far each recorded square sits from the fitted transform — the honest
-    # quality report. Big residual on ONE square = that touch was off; big
-    # residuals everywhere = re-run and touch more carefully.
-    residuals_mm = [1000.0 * _dist(t.xy(b), r) for b, r in zip(board_pts, robot_pts)]
+    t = BoardToRobot.with_warp(board_pts, robot_pts)
+    residuals_mm = [1000.0 * float(np.hypot(*(t.xy(b) - r))) for b, r in zip(board_pts, robot_pts)]
+    rms = float(np.sqrt(np.mean(np.square(residuals_mm))))
 
     import json
     import os
     os.makedirs("outputs", exist_ok=True)
     with open("outputs/last_calibration.json", "w") as f:
         json.dump({
+            "method": "driven",
             "squares": REFERENCE_SQUARES,
             "board_pts": [list(p) for p in board_pts],
             "robot_pts": [list(p) for p in robot_pts],
             "residuals_mm": [round(r, 1) for r in residuals_mm],
-            "span_cm": round(span * 100, 2),
-            "scale": round(t.scale, 6),
-            "theta_rad": round(t.theta_rad, 6),
+            "scale": round(t.scale, 6), "theta_rad": round(t.theta_rad, 6),
             "flip": int(t.flip),
             "offset": [round(float(t.offset[0]), 6), round(float(t.offset[1]), 6)],
+            "warp_x": [float(v) for v in t.warp_x], "warp_y": [float(v) for v in t.warp_y],
+            "warp_box": [float(v) for v in t.warp_box],
         }, f, indent=2)
+    print("\n(raw points saved to outputs/last_calibration.json)")
 
-    print(f"\nRecorded-point spread: {span * 100:.1f} cm  (expect ~40 cm corner-to-corner).")
-    print("(raw points saved to outputs/last_calibration.json)")
-    if span < 0.10 or not (0.5 <= t.scale <= 2.0):
-        print(f"\n⚠️  These look WRONG (scale {t.scale:.3f}, spread {span * 100:.1f} cm).")
-        print("    The points came out clustered — re-run, touching distinct squares.")
-        return
-
-    print("\nFit quality (distance between each touch and the fitted grid):")
+    print("\nFit quality (how far each recorded square is from the fitted map):")
     for sq, r in zip(REFERENCE_SQUARES, residuals_mm):
-        flag = "  <-- this touch looks off, consider re-running" if r > 15 else ""
-        print(f"   {sq}: {r:5.1f} mm{flag}")
-    rms = float(np.sqrt(np.mean(np.square(residuals_mm))))
-    print(f"   rms: {rms:5.1f} mm  (under ~8 mm is a good hand calibration;")
-    print("        the jaws forgive a few mm — grasp_test.py x/y trims the rest)")
-    if rms > 12:
-        print("\n⚠️  This fit is TOO SLOPPY to use — do NOT paste it. Usual causes:")
-        print("    a square touched out of order (follow the map!), or the touch")
-        print("    point pushed off-center. Run the script again.")
+        print(f"   {sq}: {r:5.1f} mm")
+    print(f"   rms: {rms:5.1f} mm  (driven capture should come out under ~5 mm)")
+    if rms > 15:
+        print("\n⚠️  Too inconsistent to save — one square was probably nudged onto the")
+        print("    wrong center (follow the maps). Run it again; it goes fast.")
         return
-
-    print("\n--- the new transform ---\n")
-    print("transform:")
-    print(f"  scale: {t.scale:.6f}")
-    print(f"  theta_rad: {t.theta_rad:.6f}")
-    print(f"  flip: {int(t.flip)}")
-    print(f"  offset: [{t.offset[0]:.6f}, {t.offset[1]:.6f}]")
 
     if input("\nSave into config/board.local.yaml now? [y/N] ").strip().lower() == "y":
         import yaml
@@ -172,11 +160,14 @@ def main() -> None:
             "scale": float(f"{t.scale:.6f}"), "theta_rad": float(f"{t.theta_rad:.6f}"),
             "flip": int(t.flip),
             "offset": [float(f"{t.offset[0]:.6f}"), float(f"{t.offset[1]:.6f}")],
+            "warp_x": [float(v) for v in t.warp_x],
+            "warp_y": [float(v) for v in t.warp_y],
+            "warp_box": [float(v) for v in t.warp_box],
         }
         path.write_text(yaml.safe_dump(data, sort_keys=False))
         print(f"saved -> {path}")
     else:
-        print("NOT saved — paste the transform block above into config/board.local.yaml yourself.")
+        print("NOT saved — re-run and answer y when you're happy with the fit.")
 
 
 if __name__ == "__main__":
