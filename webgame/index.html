@@ -93,7 +93,8 @@
     position: absolute; width: 12.5%; height: 12.5%;
     display: flex; align-items: center; justify-content: center;
     font-size: 8.6vmin; line-height: 1; cursor: pointer;
-    transition: transform .35s cubic-bezier(.5,1.6,.4,1), opacity .3s;
+    /* slow, watchable glide — keep in sync with MOVE_MS in the script */
+    transition: transform .8s cubic-bezier(.35,1.25,.35,1), opacity .55s;
     will-change: transform; z-index: 2; pointer-events: none;
   }
   @media (min-width: 600px) { .piece { font-size: 51px; } }
@@ -104,7 +105,7 @@
   body.theme-space .piece.black { color: #ff8fab; text-shadow: 0 2px 3px rgba(0,0,0,.5),
       -1.5px 0 #7c1f3f, 1.5px 0 #7c1f3f, 0 -1.5px #7c1f3f, 0 1.5px #7c1f3f; }
   .piece.captured { transform: scale(.1) rotate(220deg) !important; opacity: 0; }
-  .piece.landed { animation: plop .3s; }
+  .piece.landed { animation: plop .45s; }
   @keyframes plop { 40% { transform: var(--tf) scale(1.22); } }
   /* ---- overlays ---- */
   .overlay {
@@ -204,6 +205,7 @@
    animation, four gentle AI levels, WebAudio music & sounds, themes, confetti. */
 
 const $ = (id) => document.getElementById(id);
+const MOVE_MS = 800;   // piece glide time — keep in sync with the .piece transition
 const FILES = "abcdefgh";
 const GLYPH = { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚" };
 const EMOJI = { p: "♟", n: "🐴", b: "⛪", r: "🏰", q: "👑", k: "🤴" };
@@ -307,7 +309,7 @@ function animateMove(mv, done) {
     const dead = pieceEls[capSq];
     delete pieceEls[capSq];
     dead.classList.add("captured");
-    setTimeout(() => dead.remove(), 350);
+    setTimeout(() => dead.remove(), MOVE_MS - 100);
     addToTray(mv.color === "w" ? "mytray" : "theirtray", dead.dataset.type);
   }
   el.style.zIndex = 5;
@@ -330,11 +332,11 @@ function animateMove(mv, done) {
       sfx.fanfareTiny();
     }
     el.classList.add("landed");
-    setTimeout(() => el.classList.remove("landed"), 320);
+    setTimeout(() => el.classList.remove("landed"), 500);
     markLastMove(mv.from, mv.to);
     markCheck();
     done && done();
-  }, 360);
+  }, MOVE_MS + 20);
 }
 
 function addToTray(tray, type) {
@@ -416,7 +418,7 @@ function playerMove(from, to) {
     if (Math.random() < 0.3 && !game.game_over() && !game.in_check()) say(randomOf(PRAISE));
     if (game.in_check()) { say("Check! You attacked my king! 😮"); sfx.check(); }
     if (checkEnd()) return;
-    setTimeout(computerTurn, 500);
+    setTimeout(computerTurn, 700);
   });
   return true;
 }
