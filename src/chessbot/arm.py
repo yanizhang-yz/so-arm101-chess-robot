@@ -73,6 +73,8 @@ class LeRobotArm:
     settle_s: float = 0.6
     max_step_deg: float = 14.0     # largest per-joint jump per slew step
     step_s: float = 0.15           # pause between slew steps
+    correct_tol_mm: float = 4.0    # close the loop until the tip is this close
+    correct_tries: int = 2         # position touch-ups per goto
     # Adaptive grip: close in small steps and stop when the jaws meet the piece.
     grip_step: float = 4.0         # gripper units to close per step
     grip_settle_s: float = 0.12    # wait for the jaws to follow each step
@@ -144,6 +146,11 @@ class LeRobotArm:
         obs = self._obs()
         return np.array([obs[f"{m}.pos"] for m in self._arm_motors], float)
 
+    def _send_q(self, q) -> None:
+        action = {f"{m}.pos": float(q[j]) for j, m in enumerate(self._arm_motors)}
+        action["gripper.pos"] = self._gripper
+        self._send(action)
+
     def goto(self, x: float, y: float, z: float) -> None:
         import time
 
@@ -152,11 +159,22 @@ class LeRobotArm:
         q = self._ik.joints_for((x, y, z), q_now)
         steps = max(1, int(np.ceil(np.max(np.abs(q - q_now)) / self.max_step_deg)))
         for i in range(1, steps + 1):
-            qi = q_now + (q - q_now) * (i / steps)
-            action = {f"{m}.pos": float(qi[j]) for j, m in enumerate(self._arm_motors)}
-            action["gripper.pos"] = self._gripper
-            self._send(action)
+            self._send_q(q_now + (q - q_now) * (i / steps))
             time.sleep(self.step_s if i < steps else self.settle_s)
+        # Under load the servos settle a little short of their commanded angles,
+        # so the tip lands short of far targets ("the board looks smaller").
+        # Calibration was captured torque-OFF and can't absorb that. The encoders
+        # report the TRUE angles though, so measure where the tip really is and
+        # nudge the command to cancel the difference.
+        target = np.array([x, y, z], float)
+        cmd = target.copy()
+        for _ in range(self.correct_tries):
+            err = target - self._ik.forward_xyz(self._current_q())
+            if float(np.linalg.norm(err)) * 1000.0 <= self.correct_tol_mm:
+                break
+            cmd = cmd + np.clip(err, -0.02, 0.02)  # never lunge on one bad reading
+            self._send_q(self._ik.joints_for(tuple(cmd), self._current_q()))
+            time.sleep(2 * self.step_s)
 
     def _gripper_pos(self) -> float:
         return float(self._obs()["gripper.pos"])

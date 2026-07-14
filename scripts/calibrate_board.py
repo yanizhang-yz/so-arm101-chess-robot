@@ -27,7 +27,7 @@ import sys
 import numpy as np
 
 from chessbot.arm import LeRobotArm
-from chessbot.config import load
+from chessbot.config import ROOT, load
 from chessbot.kinematics import BoardToRobot
 
 # Four corners span the board; two mid-board squares let the least-squares fit
@@ -36,6 +36,31 @@ from chessbot.kinematics import BoardToRobot
 REFERENCE_SQUARES = ["a1", "h1", "h8", "a8", "d4", "e5"]
 MIN_GAP_M = 0.05  # refuse a point within 5 cm of the previous one (arm hadn't moved)
 
+# Where each square is, physically — stand on WHITE's side (the side whose
+# pieces start on ranks 1 and 2; mark a1 with a sticker so every calibration
+# agrees with the last one).
+WHERE = {
+    "a1": "NEAR-LEFT corner square (your sticker)",
+    "h1": "NEAR-RIGHT corner square (same edge as a1)",
+    "h8": "FAR-RIGHT corner square (diagonal from a1)",
+    "a8": "FAR-LEFT corner square",
+    "d4": "middle, a bit LEFT and NEAR of center",
+    "e5": "middle, a bit RIGHT and FAR of center",
+}
+
+
+def show_map(target: str) -> None:
+    """A little map of the board from White's side, # marking the square to touch."""
+    print("        (far side)")
+    for rank in range(8, 0, -1):
+        row = "".join(
+            " #" if f + str(rank) == target else " ."
+            for f in "abcdefgh"
+        )
+        print(f"   {rank} |{row}")
+    print("      " + " ".join("abcdefgh"))
+    print("        (your side = White's side)")
+
 
 def _dist(a, b) -> float:
     return float(np.hypot(a[0] - b[0], a[1] - b[1]))
@@ -43,7 +68,9 @@ def _dist(a, b) -> float:
 
 def capture(arm: LeRobotArm, square: str, prev: tuple[float, float] | None) -> tuple[float, float]:
     """Show live position; record on ENTER. Rejects points too close to `prev`."""
-    print(f"\nRest the gripper tip on the CENTER of {square}, then press ENTER.")
+    print(f"\n=== {square}: {WHERE.get(square, '')} ===")
+    show_map(square)
+    print(f"Rest the gripper tip on the CENTER of {square}, then press ENTER.")
     while True:
         x, y = arm.ee_xy()
         note = f"  ({_dist((x, y), prev) * 100:.0f} cm from last)" if prev else ""
@@ -70,6 +97,9 @@ def main() -> None:
     arm.relax()
     print("Torque off — move the arm by hand. Take your time; press ENTER at each square.")
     print("Tip: rest the jaw TIP on the square center, take your hand away, THEN press ENTER.")
+    print("\nOrientation: stand on WHITE's side (pieces on ranks 1-2 in front of you).")
+    print("a1 = near-left, h1 = near-right, a8 = far-left, h8 = far-right.")
+    print("Mark a1 with a sticker so every calibration uses the same corner!")
 
     board_pts, robot_pts = [], []
     prev: tuple[float, float] | None = None
@@ -103,6 +133,7 @@ def main() -> None:
             "span_cm": round(span * 100, 2),
             "scale": round(t.scale, 6),
             "theta_rad": round(t.theta_rad, 6),
+            "flip": int(t.flip),
             "offset": [round(float(t.offset[0]), 6), round(float(t.offset[1]), 6)],
         }, f, indent=2)
 
@@ -120,13 +151,32 @@ def main() -> None:
     rms = float(np.sqrt(np.mean(np.square(residuals_mm))))
     print(f"   rms: {rms:5.1f} mm  (under ~8 mm is a good hand calibration;")
     print("        the jaws forgive a few mm — grasp_test.py x/y trims the rest)")
+    if rms > 12:
+        print("\n⚠️  This fit is TOO SLOPPY to use — do NOT paste it. Usual causes:")
+        print("    a square touched out of order (follow the map!), or the touch")
+        print("    point pushed off-center. Run the script again.")
+        return
 
-    print("\n--- paste into config/board.local.yaml ---\n")
+    print("\n--- the new transform ---\n")
     print("transform:")
     print(f"  scale: {t.scale:.6f}")
     print(f"  theta_rad: {t.theta_rad:.6f}")
     print(f"  flip: {int(t.flip)}")
     print(f"  offset: [{t.offset[0]:.6f}, {t.offset[1]:.6f}]")
+
+    if input("\nSave into config/board.local.yaml now? [y/N] ").strip().lower() == "y":
+        import yaml
+        path = ROOT / "config" / "board.local.yaml"
+        data = yaml.safe_load(path.read_text()) if path.exists() else {}
+        data["transform"] = {
+            "scale": float(f"{t.scale:.6f}"), "theta_rad": float(f"{t.theta_rad:.6f}"),
+            "flip": int(t.flip),
+            "offset": [float(f"{t.offset[0]:.6f}"), float(f"{t.offset[1]:.6f}")],
+        }
+        path.write_text(yaml.safe_dump(data, sort_keys=False))
+        print(f"saved -> {path}")
+    else:
+        print("NOT saved — paste the transform block above into config/board.local.yaml yourself.")
 
 
 if __name__ == "__main__":
