@@ -80,5 +80,6 @@ hardware. Module map: [README](../README.md#how-its-structured).
 - `calibrate_board.py` — board→robot transform (hold each corner, press ENTER)
 - `gripper_test.py` — tune jaw open/close widths
 - `grasp_test.py` — tune the grab on a real piece (heights + sideways nudges)
+- `point_at.py` — hover over a named square ("which one is e2?"; calibration sanity check)
 - `joint_watch.py` — live joint angles + gripper xyz (used to find `table_z`)
 - `scan_motor_bus.py` — diagnose a flaky motor bus

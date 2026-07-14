@@ -89,7 +89,7 @@ class LeRobotArm:
         self._arm_motors = IKSolver.ARM_JOINTS
         self._gripper = self.gripper_open
 
-    def connect(self, attempts: int = 3) -> None:
+    def connect(self, attempts: int = 4) -> None:
         # The Feetech bus occasionally drops a motor's reply while energizing all
         # six on connect ("no status packet"). It's transient, so retry a few times
         # before giving up, disconnecting between tries to reset the bus.
