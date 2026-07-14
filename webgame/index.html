@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Kid Chess 🌈</title>
+<style>
+  :root {
+    --bg1: #ffd6e8; --bg2: #fff3c4; --bg3: #c4f5e1;
+    --light: #fff0f6; --dark: #f5a8cb;
+    --accent: #ff5da2; --ink: #4a3355;
+    --panel: rgba(255, 255, 255, 0.75);
+  }
+  body.theme-ocean {
+    --bg1: #c9f0ff; --bg2: #dff9ff; --bg3: #b3e6ff;
+    --light: #eef9ff; --dark: #82c8e8;
+    --accent: #0d8fd6; --ink: #16405c;
+  }
+  body.theme-jungle {
+    --bg1: #dcf5c2; --bg2: #f7ffd8; --bg3: #bce8a5;
+    --light: #f3fbe4; --dark: #9ccc7c;
+    --accent: #3f9425; --ink: #2c4a1c;
+  }
+  body.theme-space {
+    --bg1: #232358; --bg2: #3b2f73; --bg3: #191938;
+    --light: #cdd6f4; --dark: #6c7bd0;
+    --accent: #ffb703; --ink: #f4f0ff;
+    --panel: rgba(40, 36, 90, 0.72);
+  }
+  * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Chalkboard SE", "Comic Sans MS", "Segoe Print", "Trebuchet MS", sans-serif;
+    color: var(--ink);
+    background: linear-gradient(160deg, var(--bg1), var(--bg2) 55%, var(--bg3));
+    background-attachment: fixed;
+    overflow-x: hidden;
+    user-select: none; -webkit-user-select: none;
+  }
+  /* ---- floating decorations ---- */
+  .deco { position: fixed; top: -12vh; font-size: 5.2vmin; opacity: .8;
+          animation: floatdown linear infinite; pointer-events: none; z-index: 0; }
+  @keyframes floatdown {
+    from { transform: translateY(0) rotate(-12deg); }
+    to   { transform: translateY(125vh) rotate(14deg); }
+  }
+  /* ---- layout ---- */
+  #app { position: relative; z-index: 1; max-width: 640px; margin: 0 auto;
+         padding: 10px 12px 26px; display: flex; flex-direction: column; align-items: center; }
+  #topbar { width: 100%; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 6px 0 4px; }
+  .btn {
+    font-family: inherit; font-size: 17px; color: var(--ink);
+    background: var(--panel); border: 3px solid var(--accent); border-radius: 16px;
+    padding: 8px 14px; cursor: pointer; box-shadow: 0 3px 0 rgba(0,0,0,.12);
+    transition: transform .08s;
+  }
+  .btn:active { transform: scale(.94); }
+  #bubble {
+    min-height: 46px; margin: 6px 0; padding: 8px 18px; font-size: 19px; text-align: center;
+    background: var(--panel); border-radius: 22px; border: 3px dashed var(--accent);
+    display: flex; align-items: center; justify-content: center; max-width: 96%;
+  }
+  /* ---- captured trays ---- */
+  .tray { min-height: 26px; font-size: 20px; letter-spacing: 2px; margin: 2px 0; text-align: center;
+          filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); }
+  /* ---- board ---- */
+  #boardwrap { position: relative; width: min(88vmin, 520px); }
+  #board {
+    position: relative; width: 100%; aspect-ratio: 1/1;
+    border: 6px solid var(--accent); border-radius: 14px; overflow: hidden;
+    box-shadow: 0 10px 24px rgba(0,0,0,.18); background: var(--light);
+    touch-action: manipulation;
+  }
+  #board.shake { animation: shake .3s; }
+  @keyframes shake { 25% { transform: translateX(-7px);} 75% { transform: translateX(7px);} }
+  .sq { position: absolute; width: 12.5%; height: 12.5%; }
+  .sq.dark { background: var(--dark); }
+  .sq.lastmove::after {
+    content: ""; position: absolute; inset: 0; background: #ffe14d55;
+  }
+  .sq.selected::after {
+    content: ""; position: absolute; inset: 0; background: #ffd94a88; border-radius: 6px;
+  }
+  .sq .hintdot { position: absolute; inset: 34%; border-radius: 50%;
+                 background: var(--accent); opacity: .55; animation: pulse 1s infinite; }
+  .sq .hintring { position: absolute; inset: 6%; border-radius: 50%;
+                  border: 5px solid var(--accent); opacity: .65; animation: pulse 1s infinite; }
+  .sq.checkked { animation: dangerpulse .8s infinite; }
+  @keyframes dangerpulse { 50% { box-shadow: inset 0 0 0 6px #ff3b3baa; } }
+  @keyframes pulse { 50% { transform: scale(1.15); } }
+  .coord { position: absolute; font-size: 10px; opacity: .55; pointer-events: none; padding: 1px 3px; color: var(--ink); }
+  .piece {
+    position: absolute; width: 12.5%; height: 12.5%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8.6vmin; line-height: 1; cursor: pointer;
+    transition: transform .35s cubic-bezier(.5,1.6,.4,1), opacity .3s;
+    will-change: transform; z-index: 2; pointer-events: none;
+  }
+  @media (min-width: 600px) { .piece { font-size: 51px; } }
+  .piece.white { color: #fff6df; text-shadow: 0 2px 3px rgba(0,0,0,.35),
+      -1.5px 0 #a0722c, 1.5px 0 #a0722c, 0 -1.5px #a0722c, 0 1.5px #a0722c; }
+  .piece.black { color: #6c56c9; text-shadow: 0 2px 3px rgba(0,0,0,.35),
+      -1.5px 0 #2e2361, 1.5px 0 #2e2361, 0 -1.5px #2e2361, 0 1.5px #2e2361; }
+  body.theme-space .piece.black { color: #ff8fab; text-shadow: 0 2px 3px rgba(0,0,0,.5),
+      -1.5px 0 #7c1f3f, 1.5px 0 #7c1f3f, 0 -1.5px #7c1f3f, 0 1.5px #7c1f3f; }
+  .piece.captured { transform: scale(.1) rotate(220deg) !important; opacity: 0; }
+  .piece.landed { animation: plop .3s; }
+  @keyframes plop { 40% { transform: var(--tf) scale(1.22); } }
+  /* ---- overlays ---- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, var(--bg1), var(--bg2) 55%, var(--bg3));
+    padding: 12px; overflow-y: auto;
+  }
+  .overlay.seethrough { background: rgba(255,255,255,.55); backdrop-filter: blur(4px); }
+  body.theme-space .overlay.seethrough { background: rgba(20,18,50,.6); }
+  .card {
+    background: var(--panel); border: 4px solid var(--accent); border-radius: 26px;
+    padding: 22px 26px; max-width: 520px; width: 100%; text-align: center;
+    box-shadow: 0 14px 30px rgba(0,0,0,.2); max-height: 96vh; overflow-y: auto;
+  }
+  h1 { font-size: clamp(30px, 7vw, 44px); margin-bottom: 2px; }
+  .subtitle { font-size: 17px; opacity: .85; margin-bottom: 14px; }
+  h2 { font-size: 19px; margin: 12px 0 8px; }
+  .picker { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .pick {
+    font-family: inherit; border: 3px solid transparent; border-radius: 18px; cursor: pointer;
+    background: rgba(255,255,255,.65); color: var(--ink); padding: 10px 12px; min-width: 86px;
+    font-size: 15px; transition: transform .08s;
+  }
+  body.theme-space .pick { background: rgba(70,64,130,.65); }
+  .pick .big { display: block; font-size: 34px; margin-bottom: 2px; }
+  .pick.on { border-color: var(--accent); background: #fff; box-shadow: 0 4px 0 rgba(0,0,0,.12); }
+  body.theme-space .pick.on { background: rgba(96,88,170,.95); }
+  .pick:active { transform: scale(.93); }
+  #playbtn, .bigbtn {
+    margin-top: 18px; font-size: 26px; padding: 12px 44px; border-radius: 22px;
+    border: none; cursor: pointer; font-family: inherit; color: #fff;
+    background: var(--accent); box-shadow: 0 6px 0 rgba(0,0,0,.22);
+  }
+  #playbtn:active, .bigbtn:active { transform: translateY(3px); box-shadow: 0 3px 0 rgba(0,0,0,.22); }
+  .endemoji { font-size: 74px; animation: bounce .9s infinite; display: inline-block; }
+  @keyframes bounce { 50% { transform: translateY(-14px); } }
+  /* ---- confetti ---- */
+  .confetti { position: fixed; top: -4vh; width: 12px; height: 12px; z-index: 30;
+              animation: confall linear forwards; pointer-events: none; }
+  @keyframes confall { to { transform: translateY(115vh) rotate(720deg); } }
+</style>
+</head>
+<body class="theme-candy">
+<div id="decos"></div>
+<div id="app">
+  <div id="topbar">
+    <button class="btn" id="menubtn" title="Menu">🏠 Menu</button>
+    <button class="btn" id="newbtn" title="New game">🔄 New</button>
+    <button class="btn" id="undobtn" title="Take back">↩️ Oops</button>
+    <button class="btn" id="hintbtn" title="Hint">💡 Help me</button>
+    <button class="btn" id="musicbtn" title="Music">🎵 On</button>
+  </div>
+  <div class="tray" id="theirtray" title="Pieces the computer caught"></div>
+  <div id="boardwrap"><div id="board"></div></div>
+  <div class="tray" id="mytray" title="Pieces you caught"></div>
+  <div id="bubble">Hi! 👋</div>
+</div>
+
+<div class="overlay" id="startoverlay">
+  <div class="card">
+    <h1>🌈 Kid Chess 🐴</h1>
+    <div class="subtitle">chess for little champions!</div>
+    <h2>Pick your world</h2>
+    <div class="picker" id="themepicker">
+      <button class="pick on" data-theme="candy"><span class="big">🍭</span>Candy</button>
+      <button class="pick" data-theme="ocean"><span class="big">🌊</span>Ocean</button>
+      <button class="pick" data-theme="jungle"><span class="big">🦁</span>Jungle</button>
+      <button class="pick" data-theme="space"><span class="big">🚀</span>Space</button>
+    </div>
+    <h2>Who do you want to play?</h2>
+    <div class="picker" id="levelpicker">
+      <button class="pick on" data-level="1"><span class="big">🐣</span>Chick<br><small>super easy</small></button>
+      <button class="pick" data-level="2"><span class="big">🐰</span>Bunny<br><small>easy</small></button>
+      <button class="pick" data-level="3"><span class="big">🦊</span>Fox<br><small>tricky</small></button>
+      <button class="pick" data-level="4"><span class="big">🦉</span>Owl<br><small>wise</small></button>
+    </div>
+    <button id="playbtn">▶ PLAY!</button>
+  </div>
+</div>
+
+<div class="overlay seethrough" id="endoverlay" style="display:none">
+  <div class="card">
+    <div class="endemoji" id="endemoji">🏆</div>
+    <h1 id="endtitle">You win!</h1>
+    <div class="subtitle" id="endtext"></div>
+    <button class="bigbtn" id="againbtn">Play again!</button>
+    <div style="margin-top:10px"><button class="btn" id="endmenubtn">🏠 Menu</button></div>
+  </div>
+</div>
+
+<script src="chess.js"></script>
+<script src="ai.js"></script>
+<script>
+"use strict";
+/* ================= Kid Chess — a tap-tap chess game for ages 4+ =================
+   Board + rules: chess.js (vendored). Everything else lives here: rendering,
+   animation, four gentle AI levels, WebAudio music & sounds, themes, confetti. */
+
+const $ = (id) => document.getElementById(id);
+const FILES = "abcdefgh";
+const GLYPH = { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚" };
+const EMOJI = { p: "♟", n: "🐴", b: "⛪", r: "🏰", q: "👑", k: "🤴" };
+const VAL = { p: 100, n: 300, b: 310, r: 500, q: 900, k: 0 };
+const THEME_DECOS = {
+  candy: ["🍭", "🍩", "🎈", "🌈", "🧁"],
+  ocean: ["🐠", "🐳", "🫧", "⭐", "🐙"],
+  jungle: ["🦜", "🌿", "🐒", "🦋", "🍌"],
+  space: ["🚀", "⭐", "🪐", "👾", "☄️"],
+};
+const PRAISE = ["Great move! ✨", "Nice one! 😃", "Wow! 🌟", "You're doing great! 💪", "Smart! 🧠"];
+const THINKING = ["Hmm... 🤔", "Let me think... 🐢", "Thinking... 💭"];
+
+let game = new Chess();
+let level = 1, theme = "candy";
+let selected = null;         // square like "e2"
+let busy = false;            // true while the computer moves / animations run
+let over = false;
+let pieceEls = {};           // square -> piece element
+let musicOn = true;
+
+/* ---------------- board rendering ---------------- */
+const board = $("board");
+
+function sqXY(sq) {          // board coords (kid = white at bottom)
+  return { x: FILES.indexOf(sq[0]), y: 8 - Number(sq[1]) };
+}
+function transformFor(sq) {
+  const { x, y } = sqXY(sq);
+  return `translate(${x * 100}%, ${y * 100}%)`;
+}
+
+function buildSquares() {
+  board.innerHTML = "";
+  pieceEls = {};
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const sq = FILES[x] + (8 - y);
+      const d = document.createElement("div");
+      d.className = "sq" + (((x + y) % 2) ? " dark" : "");
+      d.style.left = x * 12.5 + "%";
+      d.style.top = y * 12.5 + "%";
+      d.dataset.sq = sq;
+      if (x === 0) d.innerHTML += `<span class="coord" style="top:0;left:2px">${8 - y}</span>`;
+      if (y === 7) d.innerHTML += `<span class="coord" style="bottom:0;right:3px">${FILES[x]}</span>`;
+      board.appendChild(d);
+    }
+  }
+}
+
+function spawnPieces() {
+  Object.values(pieceEls).forEach((el) => el.remove());
+  pieceEls = {};
+  game.board().forEach((row, y) => row.forEach((p, x) => {
+    if (!p) return;
+    const sq = FILES[x] + (8 - y);
+    addPiece(sq, p.type, p.color);
+  }));
+}
+
+function addPiece(sq, type, color) {
+  const el = document.createElement("div");
+  el.className = "piece " + (color === "w" ? "white" : "black");
+  el.textContent = GLYPH[type];
+  el.dataset.type = type;
+  el.style.transform = transformFor(sq);
+  board.appendChild(el);
+  pieceEls[sq] = el;
+}
+
+function squareEl(sq) { return board.querySelector(`.sq[data-sq="${sq}"]`); }
+function clearMarks(cls) { board.querySelectorAll("." + cls).forEach((e) => e.classList.remove(cls)); }
+function clearDots() { board.querySelectorAll(".hintdot,.hintring").forEach((e) => e.remove()); }
+
+function markLastMove(from, to) {
+  clearMarks("lastmove");
+  if (from) squareEl(from).classList.add("lastmove");
+  if (to) squareEl(to).classList.add("lastmove");
+}
+
+function markCheck() {
+  clearMarks("checkked");
+  if (!game.in_check()) return;
+  const turn = game.turn();
+  game.board().forEach((row, y) => row.forEach((p, x) => {
+    if (p && p.type === "k" && p.color === turn) {
+      squareEl(FILES[x] + (8 - y)).classList.add("checkked");
+    }
+  }));
+}
+
+/* Animate a verbose chess.js move that has ALREADY been applied to `game`. */
+function animateMove(mv, done) {
+  const el = pieceEls[mv.from];
+  delete pieceEls[mv.from];
+  // captured piece (en passant captures off the target square)
+  let capSq = null;
+  if (mv.flags.includes("e")) capSq = mv.to[0] + mv.from[1];
+  else if (mv.flags.includes("c")) capSq = mv.to;
+  if (capSq && pieceEls[capSq]) {
+    const dead = pieceEls[capSq];
+    delete pieceEls[capSq];
+    dead.classList.add("captured");
+    setTimeout(() => dead.remove(), 350);
+    addToTray(mv.color === "w" ? "mytray" : "theirtray", dead.dataset.type);
+  }
+  el.style.zIndex = 5;
+  el.style.setProperty("--tf", transformFor(mv.to));
+  el.style.transform = transformFor(mv.to);
+  pieceEls[mv.to] = el;
+  // castling: move the rook too
+  if (mv.flags.includes("k") || mv.flags.includes("q")) {
+    const rank = mv.from[1];
+    const [rf, rt] = mv.flags.includes("k") ? ["h" + rank, "f" + rank] : ["a" + rank, "d" + rank];
+    const rook = pieceEls[rf];
+    if (rook) { delete pieceEls[rf]; rook.style.transform = transformFor(rt); pieceEls[rt] = rook; }
+  }
+  setTimeout(() => {
+    el.style.zIndex = 2;
+    if (mv.flags.includes("p")) {          // promotion! always a queen 👑
+      el.textContent = GLYPH.q;
+      el.dataset.type = "q";
+      say(mv.color === "w" ? "Your pawn became a QUEEN! 👑✨" : "My pawn became a queen! 👑");
+      sfx.fanfareTiny();
+    }
+    el.classList.add("landed");
+    setTimeout(() => el.classList.remove("landed"), 320);
+    markLastMove(mv.from, mv.to);
+    markCheck();
+    done && done();
+  }, 360);
+}
+
+function addToTray(tray, type) {
+  $(tray).textContent += EMOJI[type] || GLYPH[type];
+}
+
+/* ---------------- messages ---------------- */
+function say(text) { $("bubble").textContent = text; }
+function randomOf(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+/* ---------------- sound & music (WebAudio, no files) ---------------- */
+const sfx = (() => {
+  let ctx = null, musicTimer = null, beat = 0;
+  function ac() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+  function tone(freq, dur, type = "sine", gain = 0.12, when = 0, glideTo = null) {
+    const c = ac(), o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.value = freq;
+    const t = c.currentTime + when;
+    if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, t + dur);
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(c.destination);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  // a happy little 8-note loop in C pentatonic, soft triangle + bass
+  const MELODY = [523, 587, 659, 784, 659, 880, 784, 659, 523, 659, 587, 523, 587, 659, 523, 392];
+  const BASS = [130, 0, 196, 0, 164, 0, 196, 0, 130, 0, 164, 0, 196, 0, 98, 0];
+  function musicTick() {
+    if (!musicOn) return;
+    const m = MELODY[beat % MELODY.length], b = BASS[beat % BASS.length];
+    if (m) tone(m, 0.22, "triangle", 0.045);
+    if (b) tone(b, 0.4, "sine", 0.05);
+    beat++;
+  }
+  function startMusic() {
+    if (musicTimer) return;
+    ac();
+    musicTimer = setInterval(musicTick, 280);
+  }
+  function stopMusic() { clearInterval(musicTimer); musicTimer = null; }
+  return {
+    startMusic, stopMusic,
+    pop: () => tone(520, 0.1, "sine", 0.14, 0, 300),
+    capture: () => { tone(380, 0.16, "triangle", 0.16, 0, 130); tone(700, 0.08, "sine", 0.08); },
+    illegal: () => tone(120, 0.12, "square", 0.05),
+    select: () => tone(760, 0.06, "sine", 0.07),
+    check: () => { tone(700, 0.1, "sine", 0.1); tone(940, 0.12, "sine", 0.1, 0.12); },
+    fanfareTiny: () => [523, 659, 784].forEach((f, i) => tone(f, 0.14, "triangle", 0.1, i * 0.09)),
+    win: () => [523, 659, 784, 1046, 784, 1046].forEach((f, i) => tone(f, 0.2, "triangle", 0.12, i * 0.13)),
+    lose: () => [392, 330, 262].forEach((f, i) => tone(f, 0.3, "sine", 0.08, i * 0.22)),
+  };
+})();
+
+/* ---------------- game flow (opponents live in ai.js) ---------------- */
+function select(sq) {
+  clearMarks("selected"); clearDots();
+  selected = sq;
+  if (!sq) return;
+  squareEl(sq).classList.add("selected");
+  for (const m of game.moves({ square: sq, verbose: true })) {
+    const t = squareEl(m.to), dot = document.createElement("div");
+    dot.className = m.captured ? "hintring" : "hintdot";
+    t.appendChild(dot);
+  }
+  sfx.select();
+}
+
+function playerMove(from, to) {
+  const mv = game.move({ from, to, promotion: "q" });
+  if (!mv) return false;
+  select(null);
+  busy = true;
+  (mv.captured ? sfx.capture : sfx.pop)();
+  animateMove(mv, () => {
+    if (Math.random() < 0.3 && !game.game_over() && !game.in_check()) say(randomOf(PRAISE));
+    if (game.in_check()) { say("Check! You attacked my king! 😮"); sfx.check(); }
+    if (checkEnd()) return;
+    setTimeout(computerTurn, 500);
+  });
+  return true;
+}
+
+function computerTurn() {
+  say(randomOf(THINKING));
+  setTimeout(() => {
+    const mv = game.move(KidAI.chooseMove(game, level));
+    (mv.captured ? sfx.capture : sfx.pop)();
+    animateMove(mv, () => {
+      if (checkEnd()) return;
+      if (game.in_check()) { say("Check! Protect your king! 👑😨"); sfx.check(); }
+      else say("Your turn! Tap a piece 😊");
+      busy = false;
+    });
+  }, 480 + Math.random() * 500);
+}
+
+function checkEnd() {
+  if (!game.game_over()) return false;
+  over = true; busy = true;
+  setTimeout(() => {
+    const e = $("endoverlay");
+    if (game.in_checkmate()) {
+      const kidWon = game.turn() === "b";   // side to move is checkmated
+      $("endemoji").textContent = kidWon ? "🏆" : "💜";
+      $("endtitle").textContent = kidWon ? "YOU WIN!" : "I win this time!";
+      $("endtext").textContent = kidWon ? "You are a chess champion! 🎉🎊" : "You played SO well. One more game?";
+      if (kidWon) { sfx.win(); confetti(); } else sfx.lose();
+    } else {
+      $("endemoji").textContent = "🤝";
+      $("endtitle").textContent = "It's a tie!";
+      $("endtext").textContent = "What a game! Nobody lost. High five! ✋";
+      sfx.fanfareTiny();
+    }
+    e.style.display = "flex";
+  }, 700);
+  return true;
+}
+
+function confetti() {
+  const colors = ["#ff5da2", "#ffd93d", "#6bd968", "#4fc3f7", "#b39ddb", "#ff8a65"];
+  for (let i = 0; i < 80; i++) {
+    const c = document.createElement("div");
+    c.className = "confetti";
+    c.style.left = Math.random() * 100 + "vw";
+    c.style.background = randomOf(colors);
+    c.style.borderRadius = Math.random() < 0.5 ? "50%" : "2px";
+    c.style.animationDuration = 2.2 + Math.random() * 2.5 + "s";
+    c.style.animationDelay = Math.random() * 0.8 + "s";
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 6000);
+  }
+}
+
+/* ---------------- input ---------------- */
+board.addEventListener("pointerdown", (ev) => {
+  if (busy || over) return;
+  const sqEl = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.(".sq");
+  if (!sqEl) return;
+  const sq = sqEl.dataset.sq;
+  const piece = game.get(sq);
+  if (selected && sq !== selected) {
+    if (playerMove(selected, sq)) return;
+    if (piece && piece.color === "w") { select(sq); return; }  // switched pieces
+    $("board").classList.add("shake");
+    setTimeout(() => $("board").classList.remove("shake"), 320);
+    sfx.illegal();
+    say("That piece can't go there — see the dots! 🔵");
+    return;
+  }
+  if (piece && piece.color === "w") select(sq === selected ? null : sq);
+});
+
+/* ---------------- top bar buttons ---------------- */
+$("undobtn").addEventListener("click", () => {
+  if (busy || over || game.history().length < 2) return;
+  game.undo(); game.undo();
+  spawnPieces(); clearMarks("lastmove"); clearMarks("checkked"); select(null);
+  rebuildTrays();
+  say("Okay, let's try that again! 😉");
+});
+$("hintbtn").addEventListener("click", () => {
+  if (busy || over) return;
+  const m = KidAI.best(game, 3);
+  if (!m) return;
+  squareEl(m.from).classList.add("selected");
+  const ring = document.createElement("div");
+  ring.className = "hintring";
+  squareEl(m.to).appendChild(ring);
+  say(`Psst... try the ${EMOJI[game.get(m.from).type]} here! 💡`);
+  setTimeout(() => { if (!selected) { clearMarks("selected"); clearDots(); } }, 2200);
+});
+$("newbtn").addEventListener("click", () => startGame());
+$("againbtn").addEventListener("click", () => { $("endoverlay").style.display = "none"; startGame(); });
+$("endmenubtn").addEventListener("click", () => { $("endoverlay").style.display = "none"; $("startoverlay").style.display = "flex"; });
+$("menubtn").addEventListener("click", () => { $("startoverlay").style.display = "flex"; });
+$("musicbtn").addEventListener("click", () => {
+  musicOn = !musicOn;
+  $("musicbtn").textContent = musicOn ? "🎵 On" : "🔇 Off";
+  if (musicOn) sfx.startMusic(); else sfx.stopMusic();
+});
+
+/* ---------------- start screen, themes, decorations ---------------- */
+function wirePicker(id, attr, onpick) {
+  $(id).addEventListener("click", (ev) => {
+    const b = ev.target.closest(".pick");
+    if (!b) return;
+    $(id).querySelectorAll(".pick").forEach((p) => p.classList.remove("on"));
+    b.classList.add("on");
+    onpick(b.dataset[attr]);
+  });
+}
+wirePicker("themepicker", "theme", (t) => { theme = t; applyTheme(); });
+wirePicker("levelpicker", "level", (l) => { level = Number(l); });
+
+function applyTheme() {
+  document.body.className = "theme-" + theme;
+  const decos = $("decos");
+  decos.innerHTML = "";
+  const set = THEME_DECOS[theme];
+  for (let i = 0; i < 10; i++) {
+    const d = document.createElement("div");
+    d.className = "deco";
+    d.textContent = set[i % set.length];
+    d.style.left = (4 + Math.random() * 90) + "vw";
+    d.style.animationDuration = (14 + Math.random() * 16) + "s";
+    d.style.animationDelay = (-Math.random() * 20) + "s";
+    d.style.fontSize = (3 + Math.random() * 3.5) + "vmin";
+    decos.appendChild(d);
+  }
+}
+
+function rebuildTrays() {
+  $("mytray").textContent = "";
+  $("theirtray").textContent = "";
+  for (const mv of game.history({ verbose: true })) {
+    if (mv.captured) addToTray(mv.color === "w" ? "mytray" : "theirtray", mv.captured);
+  }
+}
+
+function startGame() {
+  game = new Chess();
+  over = false; busy = false; selected = null;
+  buildSquares();
+  spawnPieces();
+  rebuildTrays();
+  $("startoverlay").style.display = "none";
+  $("endoverlay").style.display = "none";
+  say("You are the cream team! Tap a piece to start 😊");
+}
+
+$("playbtn").addEventListener("click", () => {
+  if (musicOn) sfx.startMusic();   // first user gesture: audio is allowed now
+  sfx.fanfareTiny();
+  startGame();
+});
+
+/* ---------------- boot ---------------- */
+applyTheme();
+buildSquares();
+spawnPieces();
+</script>
+</body>
+</html>

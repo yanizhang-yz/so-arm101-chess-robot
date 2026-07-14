@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "webgame",
+      "runtimeExecutable": "/Users/yanizhang/Documents/projects/chess-robot/.venv/bin/python",
+      "runtimeArgs": ["-m", "http.server", "8642", "--directory", "webgame"],
+      "port": 8642
+    }
+  ]
+}

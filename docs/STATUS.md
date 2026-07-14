@@ -4,6 +4,21 @@ Read this first when you come back. The full blow-by-blow is in
 [pairing-journal.md](pairing-journal.md); the beginner build guide is
 [Home.md](Home.md).
 
+## ⚡ THE PIVOT (Session 23)
+
+The project is now **Kid Chess** — a colorful in-browser chess game for ages
+4–5 (`webgame/index.html`: four themes, four AI levels, music, animations,
+confetti; `node webgame/ai.test.js` for its tests). The robot-arm piece-grabbing
+was shelved after hardware measurement showed the far corners of a full board
+sit ~1 cm beyond the arm's dependable reach — everything below this line is the
+arm chapter, kept intact for the arm's next job.
+
+**Before making the repo public:** (1) scrub the old `Co-Authored-By: Claude`
+trailers from git history (queued below — rewrites history + force-push);
+(2) flip visibility on GitHub; (3) optionally enable GitHub Pages (root) so the
+game is playable at a link — the root `index.html` already redirects to
+`webgame/`.
+
 ## TL;DR
 
 The **software is done and tested** (stages 1–2, 35 tests). The **arm is

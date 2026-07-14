@@ -1,33 +1,53 @@
-# chessbot — a chess-playing, chess-coaching robot arm
+# Kid Chess 🌈 — a colorful chess game for little kids
 
-A SO-ARM101 that plays chess against a kid (and, later, talks her through it like
-a coach). Built to plug into the LeRobot stack you already run in
-`../lerobot-experiments`.
+A friendly, fully offline chess game for ages **4 and up**: big tap-tap pieces,
+animated moves, cheerful music, four gentle opponents, and confetti when your
+kid wins. No install, no accounts, no ads — one folder of plain HTML.
 
-The project is layered so the **brains and logic run with no hardware** — you can
-develop and test the whole game on a laptop — and only one module
-(`arm.LeRobotArm`) ever touches the physical robot.
+## Play it
 
-> **New here, or not a programmer?** Start with the friendly, step-by-step
-> beginner's guide in **[docs/Home.md](docs/Home.md)** — it builds this whole
-> project from scratch assuming no coding background.
+**Open [`webgame/index.html`](webgame/index.html) in any browser** —
+double-clicking the file works, nothing to install. (With GitHub Pages enabled
+on this repo, it's playable straight from the Pages link too.)
 
-## Status
+What's inside:
 
-**Stages 1–2 done and runnable offline.** `stage1_demo.py` does a single
-pick-and-place and `play.py` plays a full game vs. Stockfish — both on a `MockArm`
-that prints the choreography (captures, castling, en passant, promotion all
-handled). Swap in `--hardware` once the arm is calibrated.
+- 🍭🌊🦁🚀 **Four worlds** (Candy, Ocean, Jungle, Space) — pick your colors
+  and your floating friends
+- 🐣🐰🦊🦉 **Four opponents**, from "moves at random" to "thinks three moves
+  ahead" — a 4-year-old can beat the Chick; the Owl makes parents sit up
+- 👆 **Tap-tap moves**: tap a piece, the legal squares light up, tap where to
+  go — pieces glide, captured pieces pop into your treasure tray
+- 🎵 **Music and sound effects** synthesized by the browser itself (one tap to
+  mute), 💡 hints, ↩️ an "Oops" takeback button, 👑 automatic pawn-promotion
+  party, 🎉 win confetti
+- ♟️ **Real chess** — castling, en passant, checks, mates and draws all
+  enforced (rules by the excellent [chess.js](https://github.com/jhlywa/chess.js))
 
-## The plan
+For parents who like to peek under the hood: the four opponents live in
+[`webgame/ai.js`](webgame/ai.js) (about 100 readable lines), and
+`node webgame/ai.test.js` checks them — always-legal moves, finds mate-in-one,
+takes the biggest capture, answers fast enough to feel snappy.
 
-| Stage | Goal | State |
-|------:|------|-------|
-| **1** | Reliable pick-and-place between named squares | ✅ `stage1_demo.py` |
-| **2** | Full game vs. Stockfish; you key in her moves | ✅ `play.py` |
-| 3 | Camera sees her move automatically (occupancy diff) | — |
-| 4 | Voice + Claude coach ("what if I go here?") | — |
-| 5 | Kid-level strength (Maia), persona, teaching moments | — |
+Fork it, reskin it, rename the animals — it's yours.
+
+---
+
+# The robot-arm chapter (how this project started)
+
+This repo began as a **chess-playing SO-ARM101 robot arm**. All the software
+below works — board math, move choreography, full Stockfish games, calibration
+tooling, 40+ tests — and the arm reliably moved above the board. Physically
+grabbing pieces was eventually shelved: careful measurement showed a full-size
+board spans more than the arm's dependable reach (the far corners sit about a
+centimeter past where the stretched arm can hold position). The whole debugging
+saga — and everything that DID work — is preserved in
+[docs/pairing-journal.md](docs/pairing-journal.md), and the arm code stays here
+for the arm's next job.
+
+> **New here, or not a programmer?** The step-by-step beginner's guide in
+> **[docs/Home.md](docs/Home.md)** builds the robot project from scratch,
+> assuming no coding background.
 
 ## Quickstart (offline, no arm needed)
 
