@@ -110,6 +110,8 @@ def main() -> None:
             arm.goto(gx, gy, z_travel)
             arm.goto(gx, gy, z_touch)
             print("   arm is low over its GUESS of the center — nudge it onto the center.")
+            print("   x + = away from the arm, x - = toward it;  y = sideways.")
+            print("   (not sure which way? try 'y 3', watch it move, flip the sign if wrong)")
             fx, fy = nudge_loop(arm, gx, gy, z_touch)
             board_pts.append(geo.square_center(sq))
             robot_pts.append((fx, fy))
