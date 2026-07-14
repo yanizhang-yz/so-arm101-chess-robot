@@ -35,7 +35,10 @@ from chessbot.runtime import build_arm
 
 # Nine squares: the rim (walked in order) plus the center. Nine well-spread
 # anchors are what the quadratic warp needs to pin down the arm's distortion.
-REFERENCE_SQUARES = ["a1", "d1", "h1", "h4", "h8", "e8", "a8", "a4", "d4"]
+# Ordered easy-to-hard: the squares nearest the arm first, the far corners
+# (right at the edge of reach) LAST — if one truly can't be reached, skip it
+# with 's' and the fit still works from the rest.
+REFERENCE_SQUARES = ["h4", "h1", "h8", "e8", "d1", "d4", "a4", "a8", "a1"]
 
 # Where each square is, physically — stand on WHITE's side (the side whose
 # pieces start on ranks 1 and 2; mark a1 with a sticker so every calibration
@@ -65,16 +68,19 @@ def show_map(target: str) -> None:
     print("        (your side = White's side)")
 
 
-def nudge_loop(arm, x: float, y: float, z: float) -> tuple[float, float]:
-    """Let the user walk the tip onto the square center; returns the final xy."""
+def nudge_loop(arm, x: float, y: float, z: float) -> tuple[float, float] | None:
+    """Let the user walk the tip onto the square center; returns the final xy,
+    or None if the square is skipped ('s' — e.g. truly beyond the arm's reach)."""
     while True:
-        raw = input("   nudge [x/y <mm>, ENTER=centered] > ").strip().lower().split()
+        raw = input("   nudge [x/y <mm>, ENTER=centered, s=skip] > ").strip().lower().split()
         if not raw:
             return x, y
+        if raw[0] == "s":
+            return None
         try:
             axis, mm = raw[0], float(raw[1])
         except (IndexError, ValueError):
-            print("   like this:  x 3   or   y -2   (mm); plain ENTER when centered")
+            print("   like this:  x 3   or   y -2   (mm); ENTER when centered; s to skip")
             continue
         if axis == "x":
             x += mm / 1000.0
@@ -101,7 +107,7 @@ def main() -> None:
 
     arm = build_arm(settings, hardware=True)
     arm.connect()
-    board_pts, robot_pts = [], []
+    squares, board_pts, robot_pts = [], [], []
     try:
         for sq in REFERENCE_SQUARES:
             print(f"\n=== {sq}: {WHERE[sq]} ===")
@@ -112,7 +118,13 @@ def main() -> None:
             print("   arm is low over its GUESS of the center — nudge it onto the center.")
             print("   x + = away from the arm, x - = toward it;  y = sideways.")
             print("   (not sure which way? try 'y 3', watch it move, flip the sign if wrong)")
-            fx, fy = nudge_loop(arm, gx, gy, z_touch)
+            got = nudge_loop(arm, gx, gy, z_touch)
+            if got is None:
+                print(f"   skipped {sq}.")
+                arm.goto(gx, gy, z_travel)
+                continue
+            fx, fy = got
+            squares.append(sq)
             board_pts.append(geo.square_center(sq))
             robot_pts.append((fx, fy))
             arm.goto(fx, fy, z_travel)
@@ -123,30 +135,38 @@ def main() -> None:
     finally:
         arm.disconnect()
 
+    if len(board_pts) < 4:
+        print("\nToo few squares recorded to fit anything — run it again.")
+        return
     t = BoardToRobot.with_warp(board_pts, robot_pts)
+    if t.warp_x is None:
+        print(f"\n(only {len(board_pts)} squares -> rigid fit only, no warp; 8+ squares is better)")
     residuals_mm = [1000.0 * float(np.hypot(*(t.xy(b) - r))) for b, r in zip(board_pts, robot_pts)]
     rms = float(np.sqrt(np.mean(np.square(residuals_mm))))
 
     import json
     import os
     os.makedirs("outputs", exist_ok=True)
+    warp_fields = {} if t.warp_x is None else {
+        "warp_x": [float(v) for v in t.warp_x], "warp_y": [float(v) for v in t.warp_y],
+        "warp_box": [float(v) for v in t.warp_box],
+    }
     with open("outputs/last_calibration.json", "w") as f:
         json.dump({
             "method": "driven",
-            "squares": REFERENCE_SQUARES,
+            "squares": squares,
             "board_pts": [list(p) for p in board_pts],
             "robot_pts": [list(p) for p in robot_pts],
             "residuals_mm": [round(r, 1) for r in residuals_mm],
             "scale": round(t.scale, 6), "theta_rad": round(t.theta_rad, 6),
             "flip": int(t.flip),
             "offset": [round(float(t.offset[0]), 6), round(float(t.offset[1]), 6)],
-            "warp_x": [float(v) for v in t.warp_x], "warp_y": [float(v) for v in t.warp_y],
-            "warp_box": [float(v) for v in t.warp_box],
+            **warp_fields,
         }, f, indent=2)
     print("\n(raw points saved to outputs/last_calibration.json)")
 
     print("\nFit quality (how far each recorded square is from the fitted map):")
-    for sq, r in zip(REFERENCE_SQUARES, residuals_mm):
+    for sq, r in zip(squares, residuals_mm):
         print(f"   {sq}: {r:5.1f} mm")
     print(f"   rms: {rms:5.1f} mm  (driven capture should come out under ~5 mm)")
     if rms > 15:
@@ -162,9 +182,7 @@ def main() -> None:
             "scale": float(f"{t.scale:.6f}"), "theta_rad": float(f"{t.theta_rad:.6f}"),
             "flip": int(t.flip),
             "offset": [float(f"{t.offset[0]:.6f}"), float(f"{t.offset[1]:.6f}")],
-            "warp_x": [float(v) for v in t.warp_x],
-            "warp_y": [float(v) for v in t.warp_y],
-            "warp_box": [float(v) for v in t.warp_box],
+            **warp_fields,
         }
         path.write_text(yaml.safe_dump(data, sort_keys=False))
         print(f"saved -> {path}")

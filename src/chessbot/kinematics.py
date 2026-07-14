@@ -150,11 +150,15 @@ class IKSolver:
         # The arm's measured pose can read slightly past the URDF joint limits
         # (calibration offsets), and ikpy/scipy reject an IK starting guess that's
         # out of bounds. Widen the active joints a little, then clamp the guess in
-        # joints_for() so the solver always starts inside the bounds.
+        # joints_for() so the solver always starts inside the bounds. The TRUE
+        # limits are kept: solutions are clamped back to them before being
+        # returned, so we never command a servo past its physical range.
         margin = 0.35  # radians (~20 deg)
+        self._true_lo, self._true_hi = {}, {}
         for i in self._active:
             b = self.chain.links[i].bounds
             if b and b[0] is not None and b[1] is not None:
+                self._true_lo[i], self._true_hi[i] = b
                 self.chain.links[i].bounds = (b[0] - margin, b[1] + margin)
         lows, highs = [], []
         for link in self.chain.links:
@@ -198,6 +202,9 @@ class IKSolver:
                     orientation_mode="Z",
                     initial_position=guess,
                 )
+                for i in self._active:  # never command past the REAL servo range
+                    if i in self._true_lo:
+                        full[i] = min(max(full[i], self._true_lo[i]), self._true_hi[i])
                 err = 1000.0 * float(np.linalg.norm(self.chain.forward_kinematics(full)[:3, 3] - target))
                 if err < best_err:
                     best_err, best_full = err, full
@@ -215,7 +222,9 @@ class IKSolver:
         r = float(np.hypot(target[0], target[1]))
         if r > 1e-6:
             ux, uy = target[0] / r, target[1] / r
-            for deg in (8.0, 16.0, 24.0):
+            # measured on hardware: each rung buys reach; 32 deg is what gets
+            # the far corners (a1/a8 sit ~1 cm past what 24 deg can touch)
+            for deg in (8.0, 16.0, 24.0, 32.0):
                 t = np.deg2rad(deg)
                 out.append(np.array([np.sin(t) * ux, np.sin(t) * uy, -np.cos(t)]))
         return out
