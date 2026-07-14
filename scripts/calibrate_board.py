@@ -9,9 +9,15 @@ point that's too close to the last one (which would mean the arm hadn't moved).
 
     python scripts/calibrate_board.py
 
-Touch all four corners (a1, h1, a8, h8) — they're ~30 cm apart, so the arm is in
-a very different pose at each. It then fits a transform and prints YAML for
-config/board.local.yaml (and saves the raw points to outputs/).
+Touch six squares — the four corners plus two mid-board (extra points average
+out hand-placement noise). It then fits a transform, shows how far off each
+recorded square is from the fit (in mm — your calibration quality, square by
+square), and prints YAML for config/board.local.yaml (raw points go to
+outputs/).
+
+Touching well matters more than touching fast: rest the very TIP of the closed
+jaws on the center of the square, let go so the arm isn't being pushed
+sideways, and only then press ENTER.
 """
 from __future__ import annotations
 
@@ -24,8 +30,11 @@ from chessbot.arm import LeRobotArm
 from chessbot.config import load
 from chessbot.kinematics import BoardToRobot
 
-REFERENCE_SQUARES = ["a1", "h1", "a8", "h8"]  # the four corners span the board well
-MIN_GAP_M = 0.05  # refuse a corner within 5 cm of the previous one (arm hadn't moved)
+# Four corners span the board; two mid-board squares let the least-squares fit
+# average out per-touch noise instead of trusting each corner completely.
+# Ordered as a walk around the rim, then into the middle.
+REFERENCE_SQUARES = ["a1", "h1", "h8", "a8", "d4", "e5"]
+MIN_GAP_M = 0.05  # refuse a point within 5 cm of the previous one (arm hadn't moved)
 
 
 def _dist(a, b) -> float:
@@ -59,7 +68,8 @@ def main() -> None:
     arm = LeRobotArm(port=a.follower_port, urdf_path=a.urdf_path, robot_id=a.robot_id)
     arm.connect()
     arm.relax()
-    print("Torque off — move the arm by hand. Take your time; press ENTER at each corner.")
+    print("Torque off — move the arm by hand. Take your time; press ENTER at each square.")
+    print("Tip: rest the jaw TIP on the square center, take your hand away, THEN press ENTER.")
 
     board_pts, robot_pts = [], []
     prev: tuple[float, float] | None = None
@@ -76,6 +86,11 @@ def main() -> None:
     span = max(_dist(p, q) for p in pts for q in pts)
     t = BoardToRobot.from_correspondences(board_pts, robot_pts)
 
+    # How far each recorded square sits from the fitted transform — the honest
+    # quality report. Big residual on ONE square = that touch was off; big
+    # residuals everywhere = re-run and touch more carefully.
+    residuals_mm = [1000.0 * _dist(t.xy(b), r) for b, r in zip(board_pts, robot_pts)]
+
     import json
     import os
     os.makedirs("outputs", exist_ok=True)
@@ -84,6 +99,7 @@ def main() -> None:
             "squares": REFERENCE_SQUARES,
             "board_pts": [list(p) for p in board_pts],
             "robot_pts": [list(p) for p in robot_pts],
+            "residuals_mm": [round(r, 1) for r in residuals_mm],
             "span_cm": round(span * 100, 2),
             "scale": round(t.scale, 6),
             "theta_rad": round(t.theta_rad, 6),
@@ -94,8 +110,16 @@ def main() -> None:
     print("(raw points saved to outputs/last_calibration.json)")
     if span < 0.10 or not (0.5 <= t.scale <= 2.0):
         print(f"\n⚠️  These look WRONG (scale {t.scale:.3f}, spread {span * 100:.1f} cm).")
-        print("    The corners came out clustered — re-run, touching four distinct corners.")
+        print("    The points came out clustered — re-run, touching distinct squares.")
         return
+
+    print("\nFit quality (distance between each touch and the fitted grid):")
+    for sq, r in zip(REFERENCE_SQUARES, residuals_mm):
+        flag = "  <-- this touch looks off, consider re-running" if r > 15 else ""
+        print(f"   {sq}: {r:5.1f} mm{flag}")
+    rms = float(np.sqrt(np.mean(np.square(residuals_mm))))
+    print(f"   rms: {rms:5.1f} mm  (under ~8 mm is a good hand calibration;")
+    print("        the jaws forgive a few mm — grasp_test.py x/y trims the rest)")
 
     print("\n--- paste into config/board.local.yaml ---\n")
     print("transform:")
