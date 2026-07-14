@@ -87,7 +87,70 @@
     return best(game, level === 3 ? 2 : 3);
   }
 
-  const KidAI = { evaluate, search, best, chooseMove, VAL };
+  /* ---------- kid-words layer: describe moves, coach a finished game ------- */
+
+  const KIDNAME = { p: "little pawn", n: "horsey", b: "bishop", r: "castle",
+                    q: "queen", k: "king" };
+
+  /* A short, speakable sentence about a verbose move (for the hint button). */
+  function describe(m) {
+    if (!m) return "Hmm, I don't see a move!";
+    if (m.san.startsWith("O-O")) return "Try castling — your king hides behind his castle wall!";
+    let s = `Try your ${KIDNAME[m.piece]}`;
+    if (m.captured) s += ` — it can catch their ${KIDNAME[m.captured]}!`;
+    else if (m.san.includes("#")) s += " — it wins the whole game!";
+    else if (m.san.includes("+")) s += " — it attacks their king!";
+    else s += ` — ${m.to} is a strong spot for it.`;
+    return s;
+  }
+
+  /* After the game: 3-5 short, kid-level lines about how it went.
+     The kid is always White. Uses material swings over each of the kid's
+     rounds (their move + the reply) to find the best moment and the oops. */
+  function coach(game) {
+    const hist = game.history({ verbose: true });
+    const lines = [];
+    if (hist.length < 2) return ["That was quick! Let's play a longer one! 🐣"];
+
+    // material eval after every ply: rewind this game to the start, then
+    // replay it (chess.js objects are factory-made, so there's no constructor
+    // to build a fresh one from) — the game ends back in the same state.
+    for (let i = 0; i < hist.length; i++) game.undo();
+    const evals = [0];
+    for (const m of hist) { game.move(m); evals.push(evaluate(game)); }
+
+    let best = null, worst = null, catches = 0, castled = false, promoted = false;
+    for (let i = 0; i < hist.length; i += 2) {         // the kid's plies
+      const m = hist[i];
+      if (m.captured) catches++;
+      if (m.san.startsWith("O-O")) castled = true;
+      if (m.flags.includes("p")) promoted = true;
+      const after = evals[Math.min(i + 2, evals.length - 1)];
+      const swing = after - evals[i];
+      const round = Math.floor(i / 2) + 1;
+      const lost = hist[i + 1] && hist[i + 1].captured ? hist[i + 1].captured : null;
+      if (!best || swing > best.swing) best = { m, swing, round };
+      if (!worst || swing < worst.swing) worst = { m, swing, round, lost };
+    }
+
+    if (catches > 0) lines.push(`You caught ${catches} of my pieces! 🧺`);
+    if (castled) lines.push("You castled — that keeps your king super safe! 🏰👑");
+    if (promoted) lines.push("Your little pawn walked ALL the way and became a queen! 👑✨");
+    if (best && best.swing >= 200) {
+      const what = best.m.captured ? `caught my ${KIDNAME[best.m.captured]}` : "found a super spot";
+      lines.push(`Your best move: round ${best.round}, when your ${KIDNAME[best.m.piece]} ${what}! 🌟`);
+    }
+    if (worst && worst.swing <= -250 && worst.lost) {
+      lines.push(`One thing to watch: in round ${worst.round} I caught your ${KIDNAME[worst.lost]}. ` +
+                 "Before you move, ask: is my piece safe there? 🔍");
+    } else {
+      lines.push("You kept your pieces safe — that's what champions do! 🛡️");
+    }
+    lines.push("Every game makes you stronger. Let's play again! 💪");
+    return lines;
+  }
+
+  const KidAI = { evaluate, search, best, chooseMove, describe, coach, KIDNAME, VAL };
   if (typeof module !== "undefined" && module.exports) module.exports = KidAI;
   else root.KidAI = KidAI;
 })(typeof window !== "undefined" ? window : globalThis);

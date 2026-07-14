@@ -141,6 +141,8 @@
   }
   #playbtn:active, .bigbtn:active { transform: translateY(3px); box-shadow: 0 3px 0 rgba(0,0,0,.22); }
   .endemoji { font-size: 74px; animation: bounce .9s infinite; display: inline-block; }
+  #coachbox { text-align: left; margin: 12px auto 4px; max-width: 400px; font-size: 16px; }
+  #coachbox div { margin: 7px 0; padding-left: 6px; }
   @keyframes bounce { 50% { transform: translateY(-14px); } }
   /* ---- confetti ---- */
   .confetti { position: fixed; top: -4vh; width: 12px; height: 12px; z-index: 30;
@@ -157,6 +159,7 @@
     <button class="btn" id="undobtn" title="Take back">↩️ Oops</button>
     <button class="btn" id="hintbtn" title="Hint">💡 Help me</button>
     <button class="btn" id="musicbtn" title="Music">🎵 On</button>
+    <button class="btn" id="voicebtn" title="Voice">🗣️ On</button>
   </div>
   <div class="tray" id="theirtray" title="Pieces the computer caught"></div>
   <div id="boardwrap"><div id="board"></div></div>
@@ -191,6 +194,7 @@
     <div class="endemoji" id="endemoji">🏆</div>
     <h1 id="endtitle">You win!</h1>
     <div class="subtitle" id="endtext"></div>
+    <div id="coachbox"></div>
     <button class="bigbtn" id="againbtn">Play again!</button>
     <div style="margin-top:10px"><button class="btn" id="endmenubtn">🏠 Menu</button></div>
   </div>
@@ -217,7 +221,21 @@ const THEME_DECOS = {
   space: ["🚀", "⭐", "🪐", "👾", "☄️"],
 };
 const PRAISE = ["Great move! ✨", "Nice one! 😃", "Wow! 🌟", "You're doing great! 💪", "Smart! 🧠"];
-const THINKING = ["Hmm... 🤔", "Let me think... 🐢", "Thinking... 💭"];
+// Each opponent is a character with attitude — no robotic "thinking..." lines.
+const CHARS = {
+  1: { intro: "Cheep cheep! I'm little Chick! Let's play! 🐣",
+       think: ["Cheep cheep... which one... 🐣", "Wiggle wiggle... 🐣", "Ooh! Ooh! Maybe... this one! 🐣"],
+       turn: ["Cheep! Your turn! 🐣", "Your go, big champion! 🐣"] },
+  2: { intro: "Boing boing! I'm Bunny! Good luck, champion! 🐰",
+       think: ["Hop hop hop... 🐰", "My whiskers are tingling! 🐰", "Ooh, is that a yummy snack? 🥕"],
+       turn: ["Boing! Your turn! 🐰", "Hop to it — your go! 🐰"] },
+  3: { intro: "Heh heh... I'm Fox. I'm VERY sneaky! 🦊",
+       think: ["Sneaky sneaky... 🦊", "I have a tricky little plan... 🦊", "Heh heh heh... 🦊"],
+       turn: ["Your turn, clever one! 🦊", "Let's see what you've got! 🦊"] },
+  4: { intro: "Hoo hoo! I am wise old Owl. Show me your best! 🦉",
+       think: ["Hoo... interesting... 🦉", "A wise owl never hurries... 🦉", "I see everything from up here... 🦉"],
+       turn: ["Your move, my dear student. 🦉", "Hoo! Your turn. 🦉"] },
+};
 
 let game = new Chess();
 let level = 1, theme = "candy";
@@ -343,8 +361,36 @@ function addToTray(tray, type) {
   $(tray).textContent += EMOJI[type] || GLYPH[type];
 }
 
-/* ---------------- messages ---------------- */
-function say(text) { $("bubble").textContent = text; }
+/* ---------------- messages + voice ----------------
+   Little kids can't read yet, so every bubble message is also SPOKEN with the
+   browser's built-in text-to-speech (works offline, no downloads). */
+let voiceOn = true;
+const speech = (() => {
+  const ok = typeof speechSynthesis !== "undefined";
+  let voice = null;
+  function pick() {
+    const vs = speechSynthesis.getVoices().filter((v) => v.lang && v.lang.toLowerCase().startsWith("en"));
+    voice = vs.find((v) => /samantha|female|zira|karen|google us english/i.test(v.name)) || vs[0] || null;
+  }
+  if (ok) { pick(); speechSynthesis.onvoiceschanged = pick; }
+  function speak(text, opts = {}) {
+    if (!ok || !voiceOn) return;
+    const clean = text.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, "").trim();
+    if (!clean) return;
+    // kids move fast; don't backlog — but only cancel when something is really
+    // queued, and speak on the next tick: Chrome silently drops an utterance
+    // spoken in the same tick as a cancel().
+    if (!opts.queue && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(clean);
+    if (voice) u.voice = voice;
+    u.pitch = 1.35;   // the friendly princess register
+    u.rate = 0.95;
+    setTimeout(() => speechSynthesis.speak(u), 60);
+  }
+  return { speak, cancel: () => ok && speechSynthesis.cancel() };
+})();
+
+function say(text, opts) { $("bubble").textContent = text; speech.speak(text, opts); }
 function randomOf(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 /* ---------------- sound & music (WebAudio, no files) ---------------- */
@@ -424,14 +470,14 @@ function playerMove(from, to) {
 }
 
 function computerTurn() {
-  say(randomOf(THINKING));
+  say(randomOf(CHARS[level].think));
   setTimeout(() => {
     const mv = game.move(KidAI.chooseMove(game, level));
     (mv.captured ? sfx.capture : sfx.pop)();
     animateMove(mv, () => {
       if (checkEnd()) return;
       if (game.in_check()) { say("Check! Protect your king! 👑😨"); sfx.check(); }
-      else say("Your turn! Tap a piece 😊");
+      else say(randomOf(CHARS[level].turn));
       busy = false;
     });
   }, 480 + Math.random() * 500);
@@ -453,6 +499,17 @@ function checkEnd() {
       $("endtitle").textContent = "It's a tie!";
       $("endtext").textContent = "What a game! Nobody lost. High five! ✋";
       sfx.fanfareTiny();
+    }
+    // the little lesson: what went great, what to watch, spoken out loud
+    const lines = KidAI.coach(game);
+    const box = $("coachbox");
+    box.innerHTML = "";
+    speech.speak($("endtitle").textContent + " " + $("endtext").textContent);
+    for (const l of lines) {
+      const d = document.createElement("div");
+      d.textContent = l;
+      box.appendChild(d);
+      speech.speak(l, { queue: true });
     }
     e.style.display = "flex";
   }, 700);
@@ -509,8 +566,8 @@ $("hintbtn").addEventListener("click", () => {
   const ring = document.createElement("div");
   ring.className = "hintring";
   squareEl(m.to).appendChild(ring);
-  say(`Psst... try the ${EMOJI[game.get(m.from).type]} here! 💡`);
-  setTimeout(() => { if (!selected) { clearMarks("selected"); clearDots(); } }, 2200);
+  say(KidAI.describe(m) + " 💡");   // spoken out loud, in kid words
+  setTimeout(() => { if (!selected) { clearMarks("selected"); clearDots(); } }, 3200);
 });
 $("newbtn").addEventListener("click", () => startGame());
 $("againbtn").addEventListener("click", () => { $("endoverlay").style.display = "none"; startGame(); });
@@ -520,6 +577,12 @@ $("musicbtn").addEventListener("click", () => {
   musicOn = !musicOn;
   $("musicbtn").textContent = musicOn ? "🎵 On" : "🔇 Off";
   if (musicOn) sfx.startMusic(); else sfx.stopMusic();
+});
+$("voicebtn").addEventListener("click", () => {
+  voiceOn = !voiceOn;
+  $("voicebtn").textContent = voiceOn ? "🗣️ On" : "🤫 Off";
+  if (voiceOn) say("I can talk now! Let's play!");
+  else speech.cancel();
 });
 
 /* ---------------- start screen, themes, decorations ---------------- */
@@ -568,7 +631,7 @@ function startGame() {
   rebuildTrays();
   $("startoverlay").style.display = "none";
   $("endoverlay").style.display = "none";
-  say("You are the cream team! Tap a piece to start 😊");
+  say(CHARS[level].intro + " Tap a piece to start!");
 }
 
 $("playbtn").addEventListener("click", () => {
