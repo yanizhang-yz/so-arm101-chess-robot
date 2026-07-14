@@ -86,6 +86,49 @@ def test_warp_is_clamped_outside_the_board():
     assert np.linalg.norm(warp_term((-0.13, 0.0))) < 0.02  # stays a small correction
 
 
+def _mislabeled_seed(truth, sym_name):
+    """A transform whose labeling is `sym_name` away from the truth — i.e. it
+    sends square s to where the TRUE sym(s) is (a wrongly-oriented calibration)."""
+    from chessbot.board import BoardGeometry
+    from chessbot.kinematics import BOARD_SYMMETRIES, _sq_idx, _sq_name
+    geo = BoardGeometry()
+    sym = BOARD_SYMMETRIES[sym_name]
+    ref = ["a1", "h1", "a8", "h8", "d4", "e6"]
+    board = [geo.square_center(s) for s in ref]
+    robot = [tuple(truth.xy(geo.square_center(_sq_name(*sym(*_sq_idx(s)))))) for s in ref]
+    return BoardToRobot.from_correspondences(board, robot), geo
+
+
+def test_reorient_fixes_the_h4_over_d8_case():
+    # h4 -> d8 is the diagonal mirror ("transpose"): the exact case seen live.
+    from chessbot.kinematics import reorient_transform
+    truth = BoardToRobot(scale=0.92, theta_rad=-1.54, offset=[0.34, 0.14], flip=-1)
+    seed, geo = _mislabeled_seed(truth, "transpose")
+    # sanity: driving the seed's h4 really does land on the true d8
+    assert np.allclose(seed.xy(geo.square_center("h4")), truth.xy(geo.square_center("d8")), atol=1e-9)
+    fixed = reorient_transform(seed, "h4", "d8", geo)
+    for s in ["a1", "h4", "e2", "h8", "b7"]:
+        assert np.allclose(fixed.xy(geo.square_center(s)), truth.xy(geo.square_center(s)), atol=1e-9)
+
+
+def test_reorient_handles_rotations_too():
+    # rot90 is NOT its own inverse — this catches a backwards composition.
+    from chessbot.kinematics import reorient_transform
+    truth = BoardToRobot(scale=1.1, theta_rad=0.4, offset=[0.2, -0.1])
+    seed, geo = _mislabeled_seed(truth, "rot90")
+    fixed = reorient_transform(seed, "h4", "d1", geo)  # rot90(h4) = d1
+    for s in ["a1", "g5", "h8"]:
+        assert np.allclose(fixed.xy(geo.square_center(s)), truth.xy(geo.square_center(s)), atol=1e-9)
+
+
+def test_reorient_rejects_an_impossible_square():
+    from chessbot.kinematics import orientation_candidates, reorient_transform
+    truth = BoardToRobot(offset=[0.3, 0.0])
+    seed, geo = _mislabeled_seed(truth, "as-is")
+    assert reorient_transform(seed, "h4", "b3", geo) is None  # no orientation does h4->b3
+    assert set(orientation_candidates("h4")) == {"h4", "d1", "a5", "e8", "a4", "h5", "d8", "e1"}
+
+
 def test_warp_survives_the_yaml_round_trip():
     from chessbot.config import Settings, _overlay
     warped = BoardToRobot.with_warp(

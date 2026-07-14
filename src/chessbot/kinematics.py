@@ -117,6 +117,58 @@ class BoardToRobot:
         return t
 
 
+# The 8 ways a square board's labels can be oriented (4 rotations x mirror),
+# as (file, rank) index maps. Used to fix a transform whose idea of "a1" doesn't
+# match the user's — one observed square pins down which of the 8 it is.
+BOARD_SYMMETRIES = {
+    "as-is": lambda f, r: (f, r),
+    "rot90": lambda f, r: (r, 7 - f),
+    "rot180": lambda f, r: (7 - f, 7 - r),
+    "rot270": lambda f, r: (7 - r, f),
+    "mirror-file": lambda f, r: (7 - f, r),
+    "mirror-rank": lambda f, r: (f, 7 - r),
+    "transpose": lambda f, r: (r, f),
+    "anti-transpose": lambda f, r: (7 - r, 7 - f),
+}
+_SYM_INVERSE = {"as-is": "as-is", "rot90": "rot270", "rot270": "rot90", "rot180": "rot180",
+                "mirror-file": "mirror-file", "mirror-rank": "mirror-rank",
+                "transpose": "transpose", "anti-transpose": "anti-transpose"}
+
+
+def _sq_idx(sq: str) -> tuple[int, int]:
+    return ord(sq[0]) - ord("a"), int(sq[1:]) - 1
+
+
+def _sq_name(f: int, r: int) -> str:
+    return chr(ord("a") + f) + str(r + 1)
+
+
+def orientation_candidates(expected_sq: str) -> list[str]:
+    """The 8 squares the arm could be over if the map's orientation is off."""
+    e = _sq_idx(expected_sq)
+    return sorted({_sq_name(*s(*e)) for s in BOARD_SYMMETRIES.values()})
+
+
+def reorient_transform(transform: BoardToRobot, expected_sq: str, actual_sq: str, geometry) -> BoardToRobot | None:
+    """Fix a transform whose board labeling is rotated/mirrored vs the user's.
+
+    The transform was told to go to `expected_sq` but physically hovered over
+    `actual_sq` (as identified by the user). That single observation identifies
+    which of the 8 orientations the old labeling used; returns a reseeded
+    transform in the user's labeling, or None if the pair is inconsistent with
+    every orientation (i.e. the square was misread, not mislabeled).
+    """
+    e, a = _sq_idx(expected_sq), _sq_idx(actual_sq)
+    match = [n for n, s in BOARD_SYMMETRIES.items() if s(*e) == a]
+    if not match:
+        return None
+    inv = BOARD_SYMMETRIES[_SYM_INVERSE[match[0]]]
+    ref = ["a1", "h1", "a8", "h8", "d4", "e6"]
+    board = [geometry.square_center(s) for s in ref]
+    mapped = [tuple(transform.xy(geometry.square_center(_sq_name(*inv(*_sq_idx(s)))))) for s in ref]
+    return BoardToRobot.from_correspondences(board, mapped)
+
+
 class IKSolver:
     """Inverse/forward kinematics for the SO-101 arm, via ikpy (pure Python).
 

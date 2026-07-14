@@ -30,7 +30,7 @@ from __future__ import annotations
 import numpy as np
 
 from chessbot.config import ROOT, load
-from chessbot.kinematics import BoardToRobot
+from chessbot.kinematics import BoardToRobot, orientation_candidates, reorient_transform
 from chessbot.runtime import build_arm
 
 # Nine squares: the rim (walked in order) plus the center. Nine well-spread
@@ -90,6 +90,7 @@ def nudge_loop(arm, x: float, y: float, z: float) -> tuple[float, float] | None:
             print("   x or y only")
             continue
         arm.goto(x, y, z)
+        print(f"   now at x={x:.4f} y={y:.4f}")
 
 
 def main() -> None:
@@ -109,6 +110,32 @@ def main() -> None:
     arm.connect()
     squares, board_pts, robot_pts = [], [], []
     try:
+        # --- orientation check: the OLD map's idea of "a1" may be rotated or
+        # mirrored vs your sticker. One answer pins down the true orientation.
+        first = REFERENCE_SQUARES[0]
+        while True:
+            gx, gy = (float(v) for v in settings.transform.xy(geo.square_center(first)))
+            arm.goto(gx, gy, z_travel)
+            arm.goto(gx, gy, z_touch)
+            ans = input(
+                f"\nOrientation check: the arm is hovering low over a square.\n"
+                f"If that square is {first} ({WHERE[first]}), press ENTER.\n"
+                f"Otherwise type the square it is ACTUALLY over (e.g. d8): "
+            ).strip().lower()
+            if not ans:
+                break
+            fixed = reorient_transform(settings.transform, first, ans, geo) if (
+                len(ans) in (2, 3) and "a" <= ans[0] <= "h" and ans[1:].isdigit()
+                and 1 <= int(ans[1:]) <= 8) else None
+            if fixed is None:
+                print(f"   '{ans}' doesn't match any board orientation. If the arm were")
+                print(f"   simply holding a turned/mirrored map, {first} could only appear")
+                print(f"   over one of: {', '.join(orientation_candidates(first))}.")
+                print("   Look again (count files a-h from your a1 sticker) and retype.")
+                continue
+            settings.transform = fixed
+            print("   got it — reoriented the map. Moving to check again...")
+
         for sq in REFERENCE_SQUARES:
             print(f"\n=== {sq}: {WHERE[sq]} ===")
             show_map(sq)
