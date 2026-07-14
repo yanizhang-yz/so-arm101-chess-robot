@@ -100,6 +100,11 @@ def main() -> None:
                     print("  g=grab  u/d <mm>=grip higher/lower  x/y <mm>=nudge  q=quit")
                     continue
                 print(f"  adjust: dz={1000 * dz:+.0f}mm dx={1000 * dx:+.0f}mm dy={1000 * dy:+.0f}mm  (g to try)")
+    except ConnectionError:
+        print("\nThe motor bus stopped answering — usually motor power, not software.")
+        print("Power-cycle the arm (motor power off, wait 5 s, back on) and re-run.")
+        print("If it always dies mid-move, suspect the power supply: use the kit's")
+        print("adapter plugged straight into the wall, and check the barrel plug is snug.")
     finally:
         arm.disconnect()
 

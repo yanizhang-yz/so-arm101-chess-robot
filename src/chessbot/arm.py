@@ -57,8 +57,9 @@ class LeRobotArm:
     """Drive a physical SO-ARM101 follower via LeRobot 0.5.x.
 
     goto() takes a robot-frame (x, y, z) in meters, solves IK to joint degrees,
-    and sends an absolute joint target. Simple point-to-point with a settle
-    delay — fine for stage 1; add interpolation/speed shaping later.
+    and slews there in small joint steps (one big point-to-point jump slams all
+    six motors at full speed — jerky, and the current spike can brown out the
+    motor bus mid-move). Transient "no status packet" bus glitches are retried.
 
     NOTE: gripper_open/closed and the home pose are setup-dependent — tune them
     on your arm. Keep movements slow and supervised (see README safety notes).
@@ -70,6 +71,8 @@ class LeRobotArm:
     gripper_open: float = 60.0     # 0..100; tune after calibration
     gripper_closed: float = 10.0   # hard floor — the grip stops earlier on contact
     settle_s: float = 0.6
+    max_step_deg: float = 14.0     # largest per-joint jump per slew step
+    step_s: float = 0.15           # pause between slew steps
     # Adaptive grip: close in small steps and stop when the jaws meet the piece.
     grip_step: float = 4.0         # gripper units to close per step
     grip_settle_s: float = 0.12    # wait for the jaws to follow each step
@@ -106,23 +109,57 @@ class LeRobotArm:
                 time.sleep(1.5)
 
     def disconnect(self) -> None:
-        self._robot.disconnect()
+        try:
+            self._robot.disconnect()
+        except Exception as exc:
+            # Don't let a dead bus at cleanup time bury the real error.
+            print(f"  couldn't reach the arm to disconnect cleanly ({exc}) — "
+                  "power-cycle it before the next run.")
+
+    def _bus(self, fn, attempts: int = 4, wait_s: float = 0.3):
+        """Run a bus read/write, retrying transient Feetech dropouts. The same
+        "no status packet" glitch that connect() retries also happens mid-session;
+        a couple of retries ride it out. If it KEEPS failing the bus is really
+        down — usually motor power (a sagging supply) or a loose cable."""
+        import time
+        for attempt in range(1, attempts + 1):
+            try:
+                return fn()
+            except ConnectionError as exc:
+                if attempt == attempts:
+                    print("  arm bus is not answering — check the motor power supply and "
+                          "cable, power-cycle the arm, then re-run.")
+                    raise
+                print(f"  bus glitch ({exc}); retrying ({attempt}/{attempts - 1})...")
+                time.sleep(wait_s)
+
+    def _obs(self) -> dict:
+        return self._bus(self._robot.get_observation)
+
+    def _send(self, action: dict) -> None:
+        self._bus(lambda: self._robot.send_action(action))
 
     def _current_q(self):
         import numpy as np
-        obs = self._robot.get_observation()
+        obs = self._obs()
         return np.array([obs[f"{m}.pos"] for m in self._arm_motors], float)
 
     def goto(self, x: float, y: float, z: float) -> None:
         import time
-        q = self._ik.joints_for((x, y, z), self._current_q())
-        action = {f"{m}.pos": float(q[i]) for i, m in enumerate(self._arm_motors)}
-        action["gripper.pos"] = self._gripper
-        self._robot.send_action(action)
-        time.sleep(self.settle_s)
+
+        import numpy as np
+        q_now = self._current_q()
+        q = self._ik.joints_for((x, y, z), q_now)
+        steps = max(1, int(np.ceil(np.max(np.abs(q - q_now)) / self.max_step_deg)))
+        for i in range(1, steps + 1):
+            qi = q_now + (q - q_now) * (i / steps)
+            action = {f"{m}.pos": float(qi[j]) for j, m in enumerate(self._arm_motors)}
+            action["gripper.pos"] = self._gripper
+            self._send(action)
+            time.sleep(self.step_s if i < steps else self.settle_s)
 
     def _gripper_pos(self) -> float:
-        return float(self._robot.get_observation()["gripper.pos"])
+        return float(self._obs()["gripper.pos"])
 
     def _wait_gripper_still(self, timeout_s: float = 2.5) -> float:
         """Poll until the jaws stop moving; returns where they settled."""
@@ -148,25 +185,25 @@ class LeRobotArm:
         stopped moving, seen twice in a row. Either test alone false-triggers
         while the jaws are still accelerating or mid-travel."""
         import time
-        obs = self._robot.get_observation()  # hold the arm still, only move the gripper
+        obs = self._obs()  # hold the arm still, only move the gripper
         hold = {f"{m}.pos": obs[f"{m}.pos"] for m in self._arm_motors}
         if open_:
             self._gripper = self.gripper_open
-            self._robot.send_action({**hold, "gripper.pos": self._gripper})
+            self._send({**hold, "gripper.pos": self._gripper})
             self._wait_gripper_still()
             return None
         target = actual = self._wait_gripper_still()  # close from where the jaws truly are
         stalled = 0
         while target > self.gripper_closed:
             target = max(self.gripper_closed, target - self.grip_step)
-            self._robot.send_action({**hold, "gripper.pos": target})
+            self._send({**hold, "gripper.pos": target})
             time.sleep(self.grip_settle_s)
             prev, actual = actual, self._gripper_pos()
             if actual - target >= self.grip_stall and abs(actual - prev) < 1.0:
                 stalled += 1
                 if stalled >= 2:
                     self._gripper = max(self.gripper_closed, actual - self.grip_squeeze)
-                    self._robot.send_action({**hold, "gripper.pos": self._gripper})
+                    self._send({**hold, "gripper.pos": self._gripper})
                     time.sleep(self.settle_s)
                     print(f"  grip: contact at width {actual:.1f}, holding at {self._gripper:.1f}")
                     return self._gripper
@@ -179,7 +216,7 @@ class LeRobotArm:
 
     def home(self) -> None:
         # A neutral, tucked pose. These joint angles are a starting guess — tune.
-        self._robot.send_action({
+        self._send({
             "shoulder_pan.pos": 0.0, "shoulder_lift.pos": -90.0, "elbow_flex.pos": 90.0,
             "wrist_flex.pos": 0.0, "wrist_roll.pos": 0.0, "gripper.pos": self._gripper,
         })
