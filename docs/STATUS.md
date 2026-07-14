@@ -4,20 +4,31 @@ Read this first when you come back. The full blow-by-blow is in
 [pairing-journal.md](pairing-journal.md); the beginner build guide is
 [Home.md](Home.md).
 
-## ⚡ THE PIVOT (Session 23)
+## ⚡ THE PIVOT (Session 23–24)
 
 The project is now **Kid Chess** — a colorful in-browser chess game for ages
-4–5 (`webgame/index.html`: four themes, four AI levels, music, animations,
-confetti; `node webgame/ai.test.js` for its tests). The robot-arm piece-grabbing
-was shelved after hardware measurement showed the far corners of a full board
-sit ~1 cm beyond the arm's dependable reach — everything below this line is the
-arm chapter, kept intact for the arm's next job.
+4–5. Open `webgame/index.html` (double-click works). Four themes, four
+opponents **with personalities and a voice** (browser text-to-speech — every
+message is spoken for pre-readers), slow watchable animations, talking hints
+("Try your horsey — it can catch their castle!"), and a spoken end-of-game
+mini-lesson (best moment, the oops, one tip). Tests: 42 python
+(`pytest`) + 18 node (`node webgame/ai.test.js`), all passing.
 
-**Before making the repo public:** (1) scrub the old `Co-Authored-By: Claude`
-trailers from git history (queued below — rewrites history + force-push);
-(2) flip visibility on GitHub; (3) optionally enable GitHub Pages (root) so the
-game is playable at a link — the root `index.html` already redirects to
-`webgame/`.
+The robot-arm piece-grabbing was shelved after hardware measurement showed the
+far corners of a full board sit ~1 cm beyond the arm's dependable reach —
+everything below this line is the arm chapter, kept intact for the arm's next
+job.
+
+**Next session — publish it:** (1) scrub the old `Co-Authored-By: Claude`
+trailers (queued below; rewrites history + force-push, needs Yani/permission):
+`FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --msg-filter
+'sed "/Co-Authored-By: Claude/d"' -- main`, verify with
+`git log --format='%B' main | grep -ci co-authored` → 0;
+(2) `git push --force-with-lease origin main`;
+(3) make the repo public (GitHub Settings, or `gh repo edit --visibility
+public --accept-visibility-change-consequences`) — Yani does this one;
+(4) enable GitHub Pages (main / root) — the root `index.html` already
+redirects into the game.
 
 ## TL;DR
 
