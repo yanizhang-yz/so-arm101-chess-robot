@@ -39,10 +39,6 @@ something you can actually run and see working. Don't rush — one win at a time
 8. [What's next — eyes and a voice](08-whats-next.md)
 9. [Glossary & "help, it broke!"](09-glossary-and-help.md)
 
-> 📓 **Following along as we build it together?** The [Pairing Journal](pairing-journal.md)
-> captures each hands-on session — the questions, the little stumbles, and the
-> aha moments — as they happen.
-
 ## A word on safety
 
 This is a robot that moves near a child. It's small and gentle, but please read

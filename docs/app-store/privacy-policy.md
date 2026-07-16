@@ -53,4 +53,5 @@ address with a new effective date.
 
 ## Contact
 
-Questions about privacy? Email **[contact: github.com/yanizhang-yz/chess-robot/issues]**.
+Questions about privacy? Open an issue on the project's GitHub page:
+<https://github.com/yanizhang-yz/chess-robot/issues>.

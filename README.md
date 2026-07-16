@@ -48,10 +48,9 @@ below works — board math, move choreography, full Stockfish games, calibration
 tooling, 40+ tests — and the arm reliably moved above the board. Physically
 grabbing pieces was eventually shelved: careful measurement showed a full-size
 board spans more than the arm's dependable reach (the far corners sit about a
-centimeter past where the stretched arm can hold position). The whole debugging
-saga — and everything that DID work — is preserved in
-[docs/pairing-journal.md](docs/pairing-journal.md), and the arm code stays here
-for the arm's next job.
+centimeter past where the stretched arm can hold position). The debugging story
+lives in [docs/STATUS.md](docs/STATUS.md), and the arm code stays here for the
+arm's next job.
 
 > **New here, or not a programmer?** The step-by-step beginner's guide in
 > **[docs/Home.md](docs/Home.md)** builds the robot project from scratch,

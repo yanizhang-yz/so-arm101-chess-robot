@@ -1,7 +1,7 @@
 # Where this project is (pickup notes)
 
-Read this first when you come back. The full blow-by-blow is in
-[pairing-journal.md](pairing-journal.md); the beginner build guide is
+Read this first when you come back. (The session-by-session pairing journal is
+kept locally, out of the public repo.) The beginner build guide is
 [Home.md](Home.md).
 
 ## ⚡ THE PIVOT (Session 23–25)
