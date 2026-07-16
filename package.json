@@ -1,0 +1,22 @@
+{
+  "name": "kid-chess",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kid Chess — a colorful, fully-offline chess game for ages 4+, packaged as an iPad app.",
+  "license": "MIT",
+  "scripts": {
+    "test:game": "node webgame/ai.test.js",
+    "test:appstore": "node tools/review-readiness.test.js",
+    "test": "npm run test:game && npm run test:appstore",
+    "cap:sync": "cap sync ios",
+    "cap:open": "cap open ios",
+    "ios:icons": ".venv/bin/python tools/make_app_art.py"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/ios": "^6.2.0"
+  }
+}

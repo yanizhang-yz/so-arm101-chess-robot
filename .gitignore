@@ -7,6 +7,10 @@ build/
 dist/
 .DS_Store
 
+# iPad app (Capacitor / Node) — build artifacts, not source
+node_modules/
+npm-debug.log*
+
 # local, machine-specific calibration + runtime artifacts (never commit)
 config/board.local.yaml
 outputs/

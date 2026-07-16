@@ -1,0 +1,13 @@
+{
+  "appId": "com.yanizhang.kidchess",
+  "appName": "Kid Chess",
+  "webDir": "webgame",
+  "server": {
+    "iosScheme": "app",
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#ffd6e8"
+  }
+}

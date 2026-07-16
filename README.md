@@ -10,6 +10,14 @@ kid wins. No install, no accounts, no ads — one folder of plain HTML.
 double-clicking the file works, nothing to install. (With GitHub Pages enabled
 on this repo, it's playable straight from the Pages link too.)
 
+**On an iPad:** the same game is packaged as a native iPad app (via
+[Capacitor](https://capacitorjs.com/)) so it can ship on the App Store for other
+kids to download. It's fully offline and collects no data — the easy path
+through Apple's Kids Category. Build/submit guide:
+**[docs/app-store/README.md](docs/app-store/README.md)**. A review-readiness
+test suite (`npm run test:appstore`) checks every objective App Store rejection
+cause; run everything with `npm test`.
+
 What's inside:
 
 - 🍭🌊🦁🚀 **Four worlds** (Candy, Ocean, Jungle, Space) — pick your colors

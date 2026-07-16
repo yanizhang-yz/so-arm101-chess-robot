@@ -4,31 +4,42 @@ Read this first when you come back. The full blow-by-blow is in
 [pairing-journal.md](pairing-journal.md); the beginner build guide is
 [Home.md](Home.md).
 
-## ⚡ THE PIVOT (Session 23–24)
+## ⚡ THE PIVOT (Session 23–25)
 
-The project is now **Kid Chess** — a colorful in-browser chess game for ages
-4–5. Open `webgame/index.html` (double-click works). Four themes, four
-opponents **with personalities and a voice** (browser text-to-speech — every
-message is spoken for pre-readers), slow watchable animations, talking hints
-("Try your horsey — it can catch their castle!"), and a spoken end-of-game
-mini-lesson (best moment, the oops, one tip). Tests: 42 python
-(`pytest`) + 18 node (`node webgame/ai.test.js`), all passing.
+The project is now **Kid Chess** — a colorful chess game for ages 4–5. Open
+`webgame/index.html` (double-click works). Four themes, four opponents **with
+personalities and a voice** (browser text-to-speech — every message is spoken
+for pre-readers), slow watchable animations, talking hints ("Try your horsey —
+it can catch their castle!"), and a spoken end-of-game mini-lesson.
+
+**Session 25 — it's now an iPad app.** The same web game is wrapped with
+**Capacitor** into a native iOS/iPadOS Xcode project (`ios/`), configured to
+clear Apple's **Kids Category (4+)** review: privacy manifest (no data
+collected), export-compliance flag, alpha-free 1024 icon (a pink horsey), no
+stray permissions, no network. Verified end-to-end: `npm test` (42 py + 18 node
+game tests **and** 27 review-readiness checks) passes; `xcodebuild` compiles a
+valid `App.app`; it launches and renders in the iPad simulator. Build/submit
+guide: [app-store/README.md](app-store/README.md).
+
+Tests now: `npm test` (game + App-Store readiness) and `.venv/bin/python -m
+pytest -q` (the robot core, 35 py tests).
 
 The robot-arm piece-grabbing was shelved after hardware measurement showed the
 far corners of a full board sit ~1 cm beyond the arm's dependable reach —
 everything below this line is the arm chapter, kept intact for the arm's next
 job.
 
-**Next session — publish it:** (1) scrub the old `Co-Authored-By: Claude`
-trailers (queued below; rewrites history + force-push, needs Yani/permission):
-`FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --msg-filter
-'sed "/Co-Authored-By: Claude/d"' -- main`, verify with
-`git log --format='%B' main | grep -ci co-authored` → 0;
-(2) `git push --force-with-lease origin main`;
-(3) make the repo public (GitHub Settings, or `gh repo edit --visibility
-public --accept-visibility-change-consequences`) — Yani does this one;
-(4) enable GitHub Pages (main / root) — the root `index.html` already
-redirects into the game.
+**Left to do — publish it (human-only steps):**
+1. Scrub the old `Co-Authored-By: Claude` trailers (rewrites history +
+   force-push — see housekeeping below).
+2. Make the repo public (`gh repo edit --visibility public
+   --accept-visibility-change-consequences`, or GitHub Settings) — do this
+   *after* the scrub.
+3. Enable GitHub Pages (main / root) — root `index.html` redirects into the
+   web game; also serves the privacy policy for the App Store listing.
+4. iPad app: enroll in the **Apple Developer Program ($99/yr)**, then follow
+   [app-store/README.md](app-store/README.md) Part 3 to archive, upload, and
+   submit. Only Yani can do the enroll + final Submit.
 
 ## TL;DR
 
