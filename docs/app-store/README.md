@@ -141,10 +141,11 @@ in Xcode ▸ Settings ▸ Accounts.)
   "None," which yields **4+**. When asked **"Made for Kids?"**, say yes and pick
   the **Ages 5 and under** (or 6–8) band. This is what places it in the Kids
   Category and enables the extra kid protections.
-- **Privacy Policy URL (required):** host [privacy-policy.md](privacy-policy.md).
-  Easiest: enable **GitHub Pages** on this repo (Settings ▸ Pages ▸ main/root),
-  then use the published link, e.g.
-  `https://yanizhang-yz.github.io/chess-robot/docs/app-store/privacy-policy`.
+- **Privacy Policy URL (required):** the repo is public and this file is already
+  a valid public URL that renders nicely — paste
+  `https://github.com/yanizhang-yz/chess-robot/blob/main/docs/app-store/privacy-policy.md`
+  into App Store Connect. (The game itself is also live via GitHub Pages at
+  `https://yanizhang-yz.github.io/chess-robot/`.)
 - **App Privacy ("nutrition label"):** choose **Data Not Collected**. That single
   choice matches the privacy manifest and is the whole reason review is easy.
 - **Price:** Free.

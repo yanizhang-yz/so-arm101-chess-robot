@@ -29,17 +29,21 @@ far corners of a full board sit ~1 cm beyond the arm's dependable reach —
 everything below this line is the arm chapter, kept intact for the arm's next
 job.
 
-**Left to do — publish it (human-only steps):**
-1. Scrub the old `Co-Authored-By: Claude` trailers (rewrites history +
-   force-push — see housekeeping below).
-2. Make the repo public (`gh repo edit --visibility public
-   --accept-visibility-change-consequences`, or GitHub Settings) — do this
-   *after* the scrub.
-3. Enable GitHub Pages (main / root) — root `index.html` redirects into the
-   web game; also serves the privacy policy for the App Store listing.
-4. iPad app: enroll in the **Apple Developer Program ($99/yr)**, then follow
-   [app-store/README.md](app-store/README.md) Part 3 to archive, upload, and
-   submit. Only Yani can do the enroll + final Submit.
+**Done in Session 25:**
+- ✅ Scrubbed all `Co-Authored-By: Claude` trailers from history (0 remain on
+  `main`), force-pushed. Yani is the sole contributor.
+- ✅ Repo is **public**.
+- ✅ **GitHub Pages** enabled (main / root) → the game is live at
+  <https://yanizhang-yz.github.io/chess-robot/>.
+
+**Left to do — iPad App Store (human-only steps, needs Yani's identity):**
+1. Enroll in the **Apple Developer Program ($99/yr)**.
+2. Follow [app-store/README.md](app-store/README.md) Part 2 (build + try on a
+   real iPad — confirm the spoken hints talk in WKWebView) then Part 3 (create
+   the App Store Connect record, age rating 4+ / Made for Kids, **Data Not
+   Collected**, privacy-policy URL = the GitHub blob link, archive, upload,
+   Submit). Only Yani can enroll and click the final Submit.
+3. Before every upload: `npm run test:appstore` (must stay green).
 
 ## TL;DR
 
@@ -52,17 +56,12 @@ works), descends **straight down in small steps**, and carries pieces **high
 enough to clear the ones standing on the board**. Next: put one pawn on a
 square and run `scripts/grasp_test.py` to tune the numbers.
 
-## Do this FIRST next session (housekeeping)
+## Housekeeping (done — kept for reference)
 
-**Scrub the `Co-Authored-By: Claude` trailers from git history** — Yani is the
-sole contributor. Deferred to a fresh session because it rewrites history and
-force-pushes. From the repo root:
-
-```bash
-git filter-branch --force --msg-filter 'sed "/Co-Authored-By: Claude/d"' -- --all
-git push --force-with-lease --all
-# verify: git log --format='%b' | grep -c Co-Authored   # should print 0
-```
+✅ **The `Co-Authored-By: Claude` trailers were scrubbed** from all history in
+Session 25 (`git filter-branch` msg-filter → 0 remain on `main`), then
+force-pushed. Yani is the sole contributor. Keep it that way: no commit in this
+repo should carry a Claude co-author trailer.
 
 ## What works
 
