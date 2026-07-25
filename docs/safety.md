@@ -22,11 +22,16 @@ controls; they do not replace supervision or an accessible power cut.
 
 1. Run the test suite.
 2. Run the complete move with `MockArm`.
-3. Calibrate joints and board coordinates with motors relaxed as instructed.
-4. Verify bounded above-board targets at low speed with no pieces present.
-5. Tune the gripper in free space.
-6. Test one isolated piece and one short move.
-7. Stop if reach, orientation, clearance, or motor communication is unstable.
+3. Calibrate follower joints with the motors relaxed, supporting the arm.
+4. With the board empty, use the relaxed joint watcher to record three labeled
+   square centers and fit a sanity-checked rough transform.
+5. Run board calibration only after that seed is saved. Board calibration is a
+   powered, driven workflow: stay clear and center each pose with software
+   nudges rather than touching the arm.
+6. Verify bounded above-board targets at low speed with no pieces present.
+7. Tune the gripper in free space.
+8. Test one isolated piece and one short move.
+9. Stop if reach, orientation, clearance, or motor communication is unstable.
 
 Do not jump from offline IK output to a full physical game.
 
