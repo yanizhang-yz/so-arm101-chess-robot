@@ -31,6 +31,8 @@ def _validate_hardware_transform(transform) -> None:
         raise ValueError("board transform flip must be +1 or -1")
     if (transform.warp_x is None) != (transform.warp_y is None):
         raise ValueError("board transform warp_x and warp_y must be configured together")
+    if transform.warp_box is not None and transform.warp_x is None:
+        raise ValueError("board transform warp_box requires warp_x and warp_y")
     if transform.warp_box is not None and (
         transform.warp_box[2] <= transform.warp_box[0]
         or transform.warp_box[3] <= transform.warp_box[1]
