@@ -6,18 +6,8 @@ __pycache__/
 build/
 dist/
 .DS_Store
-
-# iPad app (Capacitor / Node) — build artifacts, not source
-node_modules/
-npm-debug.log*
-
-# local, machine-specific calibration + runtime artifacts (never commit)
+.claude/
 config/board.local.yaml
 outputs/
-
-# bundled SO-101 URDF meshes — 16MB of STLs that ikpy doesn't need.
-# Refetch from github.com/TheRobotStudio/SO-ARM100 if you want sim/visualization.
-urdf/SO101/assets/
-
-# the pairing journal is personal — stays on this machine only
 docs/pairing-journal.md
+urdf/SO101/assets/
