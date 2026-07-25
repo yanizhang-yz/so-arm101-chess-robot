@@ -169,6 +169,19 @@ def reorient_transform(transform: BoardToRobot, expected_sq: str, actual_sq: str
     return BoardToRobot.from_correspondences(board, mapped)
 
 
+class UnreachableTargetError(RuntimeError):
+    """No IK candidate reached the requested Cartesian tolerance."""
+
+    def __init__(self, target_xyz, best_error_mm: float, tolerance_mm: float):
+        self.target_xyz = tuple(float(value) for value in target_xyz)
+        self.best_error_mm = float(best_error_mm)
+        self.tolerance_mm = float(tolerance_mm)
+        super().__init__(
+            f"IK target {self.target_xyz} is unreachable: closest solution missed by "
+            f"{self.best_error_mm:.1f} mm (tolerance {self.tolerance_mm:.1f} mm)"
+        )
+
+
 class IKSolver:
     """Inverse/forward kinematics for the SO-101 arm, via ikpy (pure Python).
 
@@ -262,9 +275,7 @@ class IKSolver:
                     best_err, best_full = err, full
                 if err <= tol_mm:
                     return np.rad2deg(full[self._active])
-        print(f"  ik: closest solution is {best_err:.0f} mm from "
-              f"({target[0]:.3f}, {target[1]:.3f}, {target[2]:.3f}) — is this spot within reach?")
-        return np.rad2deg(best_full[self._active])
+        raise UnreachableTargetError(target, best_err, tol_mm)
 
     def _approaches(self, target) -> list[np.ndarray]:
         """Approach directions to try: straight down, then tilted a few degrees

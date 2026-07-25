@@ -22,7 +22,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("port", help="e.g. /dev/tty.usbmodem5B415325701 (from lerobot-find-port)")
+    parser.add_argument("port", help="e.g. /dev/tty.usbmodemFOLLOWER (from lerobot-find-port)")
     args = parser.parse_args()
 
     try:
