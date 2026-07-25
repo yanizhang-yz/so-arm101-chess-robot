@@ -72,7 +72,9 @@ match the physical setup.
 ## 5. Seed a rough board transform safely
 
 The identity transform in the example file is a schema example, not a safe
-motion target. Do not run powered board calibration from those defaults.
+motion target. Hardware startup rejects that unseeded default, non-finite
+values, and a non-positive transform scale before loading the physical backend.
+Do not run powered board calibration from those defaults.
 
 With the board empty and the power cut accessible, start the joint watcher:
 
@@ -144,7 +146,9 @@ unstable or beyond safe reach.
 
 The tool checks orientation, fits the rigid transform plus a measured warp,
 reports residuals, and offers to save the result. Reject an inconsistent fit or
-implausible scale.
+implausible scale. If inverse kinematics reports that its closest solution
+missed the target tolerance, stop; the application will not substitute that
+closest joint pose.
 
 After calibration, use the point and joint tools to verify above-board poses:
 

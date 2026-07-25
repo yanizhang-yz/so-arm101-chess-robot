@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-from chessbot.kinematics import BoardToRobot
+from chessbot.kinematics import BoardToRobot, IKSolver
 
 
 def test_identity_transform_passes_through():
@@ -143,3 +143,65 @@ def test_warp_survives_the_yaml_round_trip():
     }})
     for p in [(0.0, 0.0), (0.12, 0.2), (-0.05, 0.0)]:
         assert np.allclose(s.transform.xy(p), warped.xy(p), atol=1e-9)
+
+
+class _FixedIKChain:
+    def __init__(self, candidate_deg, end_xyz):
+        self.links = [object() for _ in candidate_deg]
+        self._candidate = np.deg2rad(np.asarray(candidate_deg, float))
+        self._end_xyz = np.asarray(end_xyz, float)
+
+    def inverse_kinematics(self, **_kwargs):
+        return self._candidate.copy()
+
+    def forward_kinematics(self, _full):
+        transform = np.eye(4)
+        transform[:3, 3] = self._end_xyz
+        return transform
+
+
+def _fixed_solver(candidate_deg, end_xyz):
+    solver = object.__new__(IKSolver)
+    solver.chain = _FixedIKChain(candidate_deg, end_xyz)
+    solver._active = list(range(len(candidate_deg)))
+    solver._true_lo = {}
+    solver._true_hi = {}
+    solver._lower = np.full(len(candidate_deg), -np.inf)
+    solver._upper = np.full(len(candidate_deg), np.inf)
+    solver._approaches = lambda _target: [np.array([0.0, 0.0, -1.0])]
+    return solver
+
+
+def test_ik_rejects_the_best_candidate_when_it_misses_tolerance():
+    solver = _fixed_solver(
+        candidate_deg=[10.0, 20.0, 30.0, 40.0, 50.0],
+        end_xyz=[0.1, -0.2, 0.4],
+    )
+
+    with pytest.raises(RuntimeError) as caught:
+        solver.joints_for(
+            xyz=[0.1, -0.2, 0.3],
+            current_q_deg=[0.0, 0.0, 0.0, 0.0, 0.0],
+            tol_mm=3.0,
+        )
+
+    error = caught.value
+    assert type(error).__name__ == "UnreachableTargetError"
+    assert error.target_xyz == pytest.approx((0.1, -0.2, 0.3))
+    assert error.best_error_mm == pytest.approx(100.0)
+    assert error.tolerance_mm == pytest.approx(3.0)
+
+
+def test_ik_returns_a_candidate_that_meets_tolerance():
+    solver = _fixed_solver(
+        candidate_deg=[10.0, 20.0, 30.0, 40.0, 50.0],
+        end_xyz=[0.1, -0.2, 0.302],
+    )
+
+    result = solver.joints_for(
+        xyz=[0.1, -0.2, 0.3],
+        current_q_deg=[0.0, 0.0, 0.0, 0.0, 0.0],
+        tol_mm=3.0,
+    )
+
+    assert result == pytest.approx([10.0, 20.0, 30.0, 40.0, 50.0])

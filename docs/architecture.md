@@ -75,8 +75,11 @@ motion code.
 ## Failure boundaries
 
 - Illegal chess input fails before motion planning.
-- Invalid square or calibration data fails before hardware commands.
-- Unreachable IK targets fail with the requested Cartesian target.
+- Hardware construction rejects the unseeded default transform and invalid
+  transform values before importing or constructing the physical backend.
+- Unreachable IK targets raise an error containing the requested Cartesian
+  target, closest error, and required tolerance; the closest joint vector is
+  never returned as a command.
 - Motor-bus retries are bounded; an operator remains responsible for cutting
   power when motion is unsafe.
 

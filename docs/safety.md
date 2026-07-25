@@ -42,7 +42,10 @@ Do not jump from offline IK output to a full physical game.
 - Keep approach and descent incremental. `ChessMotion` uses stepped vertical
   movement so a bad height does not become one large downward command.
 - Maintain travel height above the tallest configured piece plus margin.
-- Treat calibration warnings and unreachable IK errors as stop conditions.
+- Hardware startup fails closed on an unseeded, non-finite, or non-positive
+  board transform. Treat that failure as a calibration stop condition.
+- An IK target that misses its tolerance raises an error instead of returning
+  the closest joint pose. Stop and revise the target or physical setup.
 - Do not use repeated commands to force a marginal far-corner pose.
 
 ## Preflight
