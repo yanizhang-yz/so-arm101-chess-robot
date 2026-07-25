@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chessbot"
 version = "0.1.0"
-description = "A chess-playing, chess-coaching robot arm for the SO-ARM101 (LeRobot)."
+description = "Tested SO-ARM101 chess-robot stack with calibration, kinematics, motion choreography, and mock hardware"
 requires-python = ">=3.10"
 dependencies = [
     "chess>=1.10",   # python-chess: game state, legal moves, special-move detection
