@@ -55,8 +55,9 @@ See [Architecture](docs/architecture.md) for module ownership and data flow.
 
 ## Quickstart with MockArm
 
-Python 3.10 or newer is required. The default path is offline and does not need
-the arm or LeRobot.
+The core, `MockArm`, and test paths require Python 3.10 or newer and do not
+need the arm or LeRobot. The physical `LeRobotArm` hardware path requires
+Python 3.12 or newer.
 
 ```bash
 uv venv --python 3.12
@@ -81,6 +82,10 @@ machine-specific ports, personal paths, and personal relationship wording from
 being committed.
 
 ## Hardware status
+
+Install the `.[hardware]` extra and use Python 3.12 or newer before enabling
+the LeRobot hardware path; the core/mock/test path remains supported on Python
+3.10 or newer.
 
 The follower arm, motor bus, joint calibration, board transform, and above-board
 motion were brought up. Piece-aware heights, stepped descent, adaptive gripper
