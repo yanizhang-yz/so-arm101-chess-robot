@@ -4,6 +4,17 @@ A tested chess-playing robot stack for the SO-ARM101: board calibration,
 coordinate transforms, inverse kinematics, move choreography, Stockfish game
 logic, mock hardware, and real-arm bring-up.
 
+## Part of the Software-to-Robotics-Inference Path
+
+This repository is a measured engineering case study, not a completed
+autonomous chess product: its [reachability analysis](docs/reachability-analysis.md)
+records the hardware constraint and stop decision. It contributes evidence about
+hardware constraints and honest evaluation to
+[M3 — Optional Real-Arm Capstone](https://github.com/yanizhang-yz/software-to-robotics-inference/blob/main/docs/milestones/m3-real-arm-capstone.md)
+and [M6 — Contribute and Present the Evidence](https://github.com/yanizhang-yz/software-to-robotics-inference/blob/main/docs/milestones/m6-contribute-and-present.md).
+See [Transition Lessons](docs/transition-lessons.md) for the reusable case
+study.
+
 ## Project Result
 
 The software path works offline and the arm reliably reached poses above the
